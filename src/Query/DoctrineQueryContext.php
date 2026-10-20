@@ -1,0 +1,95 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Sidus\DoctrineFilterBundle\Query;
+
+use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\QueryBuilder;
+use Sidus\DoctrineFilterBundle\Metadata\ListMapping;
+use Sidus\DoctrineFilterBundle\Platform\Dialect;
+use Sidus\FilterBundle\Definition\Field;
+use Sidus\FilterBundle\Provider\QueryContextInterface;
+
+/**
+ * The per-request query: the QueryBuilder, its joins and its parameters. Created by the query handler for one
+ * request, handed to customizers ({@see DoctrineQueryHandler::withCustomizer()}), count strategies and compilers;
+ * never stored in a service.
+ *
+ * Parameters are named `p1`, `p2`, ... in compilation order, so the DQL only varies with *which* filters are active.
+ */
+final class DoctrineQueryContext implements QueryContextInterface
+{
+    private int $parameterCount = 0;
+
+    private bool $distinct = false;
+
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager,
+        private readonly QueryBuilder $queryBuilder,
+        private readonly JoinRegistry $joins,
+        public readonly ListMapping $mapping,
+        public readonly Dialect $dialect,
+    ) {
+    }
+
+    public function entityManager(): EntityManagerInterface
+    {
+        return $this->entityManager;
+    }
+
+    public function queryBuilder(): QueryBuilder
+    {
+        return $this->queryBuilder;
+    }
+
+    public function joins(): JoinRegistry
+    {
+        return $this->joins;
+    }
+
+    public function rootAlias(): string
+    {
+        return $this->joins->rootAlias();
+    }
+
+    /** The DQL path of the root identifier (`root.id`). */
+    public function identifierPath(): string
+    {
+        return $this->rootAlias().'.'.$this->mapping->identifier;
+    }
+
+    /**
+     * Binds a value and returns its placeholder (`:p3`). `$type` is a DBAL type name, a binding type or null.
+     */
+    public function parameter(mixed $value, string|ArrayParameterType|null $type = null): string
+    {
+        $name = 'p'.++$this->parameterCount;
+        $this->queryBuilder->setParameter($name, $value, $type);
+
+        return ':'.$name;
+    }
+
+    /**
+     * Declares that the query can return a root several times (a customizer joining a collection): the total
+     * becomes `COUNT(DISTINCT id)` and the page is fetched through the ORM paginator.
+     */
+    public function requireDistinct(): void
+    {
+        $this->distinct = true;
+    }
+
+    public function isDistinct(): bool
+    {
+        return $this->distinct;
+    }
+
+    /**
+     * A provider option of the filter(s) declaring this field as attribute, e.g. `case_insensitive`.
+     */
+    public function fieldOption(Field $field, string $option, mixed $default): mixed
+    {
+        return $this->mapping->fieldOptions[(string) $field][$option] ?? $default;
+    }
+}
