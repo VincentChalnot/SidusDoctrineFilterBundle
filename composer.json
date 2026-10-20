@@ -10,6 +10,10 @@
         "dql"
     ],
     "homepage": "https://github.com/VincentChalnot/SidusDoctrineFilterBundle",
+    "support": {
+        "issues": "https://github.com/VincentChalnot/SidusDoctrineFilterBundle/issues",
+        "source": "https://github.com/VincentChalnot/SidusDoctrineFilterBundle"
+    },
     "type": "symfony-bundle",
     "license": "MIT",
     "authors": [
