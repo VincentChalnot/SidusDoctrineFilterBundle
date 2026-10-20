@@ -53,7 +53,7 @@ final class SortCompiler implements DoctrineSortCompilerInterface
             } else {
                 $expression = FieldAccess::column($field, $context->joins()->alias($field, \count($field->steps)), $context);
                 $nullable = $field->isNullable();
-                $text = \in_array($field->leafType, FieldCapabilities::TEXT_TYPES, true);
+                $text = \in_array($field->valueType(), FieldCapabilities::TEXT_TYPES, true);
             }
             if ($nullable && !$context->dialect->nullsSortLikeReference()) {
                 Ordering::add($queryBuilder, 'CASE WHEN '.$expression.' IS NULL THEN '.($descending ? 1 : 0).' ELSE '.($descending ? 0 : 1).' END');

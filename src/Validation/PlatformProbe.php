@@ -25,6 +25,14 @@ final class PlatformProbe
     {
     }
 
+    /** The dialect of the connection, null when it is unreachable or unsupported. */
+    public function dialect(): ?Dialect
+    {
+        $this->load();
+
+        return $this->dialect;
+    }
+
     /** @return string|null why `Matches` cannot work on this connection */
     public function regexpRefusal(): ?string
     {

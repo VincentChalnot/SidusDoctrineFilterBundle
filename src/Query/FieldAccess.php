@@ -15,6 +15,7 @@ use Sidus\DoctrineFilterBundle\Metadata\ResolvedField;
  *    aliases (`x1_tags`, numbered in compilation order). Two criteria on the same collection are therefore
  *    independent ("any element"), no row is multiplied, and paging stays a plain LIMIT/OFFSET.
  *
+ * A named join of cardinality many correlates through its condition (`FROM Entity x1_alias WHERE x1_alias.field = <equals>`).
  * The subquery selects from the target entity correlated through the foreign key when the collection is mapped by
  * one (`FROM Tag x1_tags WHERE x1_tags.post = post_`), and otherwise from the source entity joined to the collection
  * (`FROM Post x1_r JOIN x1_r.tags x1_tags WHERE x1_r = post_`).
@@ -28,8 +29,9 @@ final class FieldAccess
     public static function matching(DoctrineQueryContext $context, ResolvedField $field, \Closure $predicate, bool $emptyListMatches = false): DqlExpression
     {
         $first = $field->firstToMany();
-        if (null === $first) {
-            $alias = $context->joins()->alias($field, \count($field->steps));
+        $shared = null !== $first && $context->isShared($field);
+        if (null === $first || $shared) {
+            $alias = $context->joins()->alias($field, \count($field->steps), $shared);
 
             return $predicate(self::column($field, $alias, $context));
         }
@@ -79,7 +81,9 @@ final class FieldAccess
             throw new \LogicException(\sprintf('"%s" ends on an association: it has no column.', $field));
         }
 
-        return $alias.'.'.$field->leaf;
+        $column = $alias.'.'.$field->leaf;
+
+        return $field->isJson() ? $context->jsonColumn($field, $column) : $column;
     }
 
     /**
@@ -94,7 +98,10 @@ final class FieldAccess
         $step = $field->steps[$first];
         $prefix = 'x'.$index.'_';
         $alias = $prefix.$step->name;
-        if (null !== $step->mappedBy) {
+        if (null !== $step->join) {
+            $from = $step->target.' '.$alias;
+            $where = [$alias.'.'.$step->join->onField.' = '.$joins->onExpression($step->join)];
+        } elseif (null !== $step->mappedBy) {
             $from = $step->target.' '.$alias;
             $where = [$alias.'.'.$step->mappedBy.' = '.$base];
         } else {
@@ -107,7 +114,7 @@ final class FieldAccess
             $next = $field->steps[$i];
             $joinsDql .= ($next->toMany ? ' JOIN ' : ' LEFT JOIN ').$alias.'.'.$next->name.' '.($alias .= '_'.$next->name);
         }
-        $column = null === $field->leaf ? $alias : $alias.'.'.$field->leaf;
+        $column = null === $field->leaf ? $alias : self::column($field, $alias, $context);
         if (null !== $predicate) {
             $where[] = $predicate($column)->dql;
         }

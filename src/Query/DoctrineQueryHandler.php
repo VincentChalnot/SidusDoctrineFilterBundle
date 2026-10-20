@@ -36,6 +36,7 @@ final class DoctrineQueryHandler extends AbstractQueryHandler
         private readonly DoctrineCompiler $compiler,
         private readonly ListMapping $mapping,
         private readonly Dialect $dialect,
+        private readonly JsonSupport $json,
     ) {
         parent::__construct($definition, $filterTypes, $countStrategy);
     }
@@ -66,6 +67,7 @@ final class DoctrineQueryHandler extends AbstractQueryHandler
             new JoinRegistry($queryBuilder, $alias, $this->mapping->fields),
             $this->mapping,
             $this->dialect,
+            $this->json,
         );
         foreach ($this->customizers as $customizer) {
             $customizer($context);

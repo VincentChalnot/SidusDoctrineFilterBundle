@@ -69,6 +69,68 @@ from the list configuration only: no request input is ever resolved as a path.
   the active filters. The DQL only varies with *which* filters are active (a finite set of shapes), so Doctrine's
   query cache hits. No `uniqid()` anywhere.
 
+## Named joins (entities without an association)
+
+`options.joins` joins an entity that has no Doctrine association to the root (what the qk-sds-api handler did with
+`options.joins`). The alias is usable as the first segment of any attribute path or sort column:
+
+```yaml
+options:
+    entity: App\Entity\Line
+    joins:
+        language:                                     # alias: `language.name`, `language.code`...
+            entity: App\Entity\SdsFileLanguage
+            on: { field: sdsFile, equals: page.pages.sdsFile }   # language.sdsFile = <path of the root>
+            cardinality: one                          # one (default) | many
+        review:
+            entity: App\Entity\Review
+            on: { field: postId, equals: id }
+            cardinality: many                         # a collection: one EXISTS per criterion
+            # shared: true                            # ... or one shared join (see below)
+```
+
+* `cardinality: one`: a shared `LEFT JOIN App\Entity\SdsFileLanguage j_language ON j_language.sdsFile = <expr>`, added once
+  per request on first use by any filter, sort column or customizer. `<expr>` is the `equals` path of the root, whose
+  to-one prefixes are joined first (`page_pages_.sdsFile`): it never goes through a collection or another named join.
+  (`WITH` before ORM 3.7, which deprecates it for arbitrary joins.)
+* `cardinality: many`: behaves like a to-many association: each criterion is a correlated
+  `EXISTS (SELECT 1 FROM Review x1_review WHERE x1_review.postId = root.id AND ...)`.
+* Validated at warm-up: the alias must not shadow a field or association of the root, the entity must be managed,
+  `on.field` must exist on it, `on.equals` must be a to-one path of the root.
+
+### Shared collections (opt-in)
+
+By default two criteria on one collection are independent ("some tag is php *and* some tag is symfony"). To mean
+"the *same* element satisfies both", opt in, which joins the collection once (`LEFT JOIN root.tags tags_`) and shares
+the alias:
+
+* a filter with `provider_options: { doctrine: { join: shared } }` (every filter naming the same attribute must say
+  so), or
+* a named join with `cardinality: many` and `shared: true`.
+
+A query that joins a collection can return a root several times, so the list switches to its DISTINCT mode:
+`COUNT(DISTINCT root.id)` and the page fetched through the ORM paginator (`debug` shows `isDistinct()`).
+
+## JSON paths
+
+An attribute `{ path: meta, json: [stats, score], cast: integer }` (or `meta->stats->score::integer`) reads a value
+inside a `json` / `jsonb` column. Casts: `integer`, `float`, `string`, `boolean`, `date`; without a cast the value
+is read as text. Missing keys and JSON `null` are NULL, an all-digit segment is an array index. Any criterion and
+sort column can use it; the value types follow the cast (`Range` needs `integer`, `float` or `date`).
+
+JSON paths are compiled by a `JsonPathCompilerInterface` service (autoconfigured, tag
+`sidus_doctrine_filter.json_compiler`; the first one that supports the connection's dialect is used):
+
+| Platform | Compiler |
+|---|---|
+| PostgreSQL | `martin-georgiev/postgresql-for-doctrine` (`composer require`): `JSON_GET_FIELD` (`->`), `JSON_GET_FIELD_AS_TEXT` (`->>`), `JSON_GET_FIELD_AS_INTEGER`, `CAST`; the bundle registers them. Works on `json` and `jsonb`. |
+| MariaDB / MySQL | the bundle's `SIDUS_JSON(col, '$.a.b', 'cast')`: MariaDB `JSON_VALUE`, MySQL `JSON_UNQUOTE(JSON_EXTRACT())`. `date` casts are refused (`CAST(.. AS DATETIME)` drops the UTC offset). |
+| SQLite | refused: JSON paths are a configuration error (warm-up) naming the reason. |
+
+A value that cannot be cast (`"abc"` as integer) is a database error (PostgreSQL) or reads as 0 (MariaDB), where
+the in-memory reference reads null: keep the data of a cast path clean. The contract of JSON paths is tested by
+running the same cases on the database and on the in-memory provider over the same documents.
+
 ## Criteria
 
 | Criterion | DQL |

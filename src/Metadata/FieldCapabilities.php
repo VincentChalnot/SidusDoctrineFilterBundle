@@ -24,6 +24,7 @@ final class FieldCapabilities
     public const array TEXT_TYPES = ['string', 'text', 'ascii_string'];
     public const array NUMBER_TYPES = ['integer', 'smallint', 'bigint', 'float', 'smallfloat', 'decimal'];
     public const array DATE_TYPES = ['date', 'date_immutable', 'datetime', 'datetime_immutable', 'datetimetz', 'datetimetz_immutable'];
+    public const array JSON_TYPES = ['json', 'jsonb', 'json_document'];
     private const array OPAQUE_TYPES = ['json', 'jsonb', 'json_array', 'json_document', 'array', 'simple_array', 'object', 'blob'];
 
     /**
@@ -33,23 +34,20 @@ final class FieldCapabilities
      */
     public static function refusal(string $criterionClass, ResolvedField $field): ?string
     {
-        if ($field->isJson()) {
-            return 'JSON paths are not available';
-        }
         if ($field->endsOnAssociation()) {
             return self::associationRefusal($criterionClass, $field);
         }
-        $type = $field->leafType;
+        $type = $field->valueType(); // the cast type for a JSON path
         $opaque = \in_array($type, self::OPAQUE_TYPES, true);
 
         return match ($criterionClass) {
             Equals::class, In::class => $opaque ? \sprintf('the type "%s" cannot be compared for equality', $type) : null,
             Contains::class, StartsWith::class, EndsWith::class, Matches::class => \in_array($type, self::TEXT_TYPES, true)
                 ? null
-                : \sprintf('text criteria need a string field, "%s" is of type "%s"', $field->field->path, $type),
+                : \sprintf('text criteria need a string field, "%s" is of type "%s"', $field->field, $type),
             Range::class => \in_array($type, [...self::NUMBER_TYPES, ...self::DATE_TYPES], true)
                 ? null
-                : \sprintf('a range needs a number or date field, "%s" is of type "%s"', $field->field->path, $type),
+                : \sprintf('a range needs a number or date field, "%s" is of type "%s"'.($field->isJson() ? ' (cast the JSON value: ->key::integer)' : ''), $field->field, $type),
             IsNull::class, IsEmpty::class => $opaque ? \sprintf('the type "%s" cannot be tested for emptiness', $type) : null,
             default => null,
         };
@@ -60,9 +58,6 @@ final class FieldCapabilities
      */
     public static function sortRefusal(ResolvedField $field, ?string $aggregate): ?string
     {
-        if ($field->isJson()) {
-            return 'JSON paths are not available';
-        }
         if (null !== $aggregate) {
             if (!\in_array($aggregate, ['count', 'min', 'max'], true)) {
                 return \sprintf('unknown aggregate "%s" (count, min or max)', $aggregate);
@@ -74,7 +69,7 @@ final class FieldCapabilities
                 return \sprintf('%s needs a scalar field, "%s" ends on an association', $aggregate, $field->field->path);
             }
 
-            return 'count' !== $aggregate && \in_array($field->leafType, self::OPAQUE_TYPES, true) ? \sprintf('the type "%s" cannot be ordered', $field->leafType) : null;
+            return 'count' !== $aggregate && \in_array($field->valueType(), self::OPAQUE_TYPES, true) ? \sprintf('the type "%s" cannot be ordered', $field->valueType()) : null;
         }
         if ($field->isToMany()) {
             return \sprintf('"%s" goes through a to-many association: a sort needs an aggregate (provider_options.doctrine.aggregate: count, min or max)', $field->field->path);
@@ -83,7 +78,7 @@ final class FieldCapabilities
             return \sprintf('"%s" ends on an association, sort on one of its fields', $field->field->path);
         }
 
-        return \in_array($field->leafType, self::OPAQUE_TYPES, true) ? \sprintf('the type "%s" cannot be ordered', $field->leafType) : null;
+        return \in_array($field->valueType(), self::OPAQUE_TYPES, true) ? \sprintf('the type "%s" cannot be ordered', $field->valueType()) : null;
     }
 
     private static function associationRefusal(string $criterionClass, ResolvedField $field): ?string

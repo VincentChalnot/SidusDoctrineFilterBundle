@@ -19,6 +19,8 @@ use Sidus\DoctrineFilterBundle\Compiler\RangeCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\SortCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\StartsWithCompiler;
 use Sidus\DoctrineFilterBundle\Factory\DoctrineQueryHandlerFactory;
+use Sidus\DoctrineFilterBundle\Json\MySqlJsonPathCompiler;
+use Sidus\DoctrineFilterBundle\Json\PostgreSqlJsonPathCompiler;
 use Sidus\DoctrineFilterBundle\Validation\ListValidator;
 use Sidus\FilterBundle\Registry\FilterTypeRegistry;
 use Sidus\FilterBundle\Registry\ListDefinitionRegistry;
@@ -39,9 +41,13 @@ return static function (ContainerConfigurator $container): void {
         $services->set($compiler);
     }
 
+    $services->set(PostgreSqlJsonPathCompiler::class);
+    $services->set(MySqlJsonPathCompiler::class);
+
     $services->set(DoctrineQueryHandlerFactory::class)->args([
         service('doctrine'),
         tagged_iterator('sidus_doctrine_filter.compiler'),
+        tagged_iterator('sidus_doctrine_filter.json_compiler'),
     ]);
 
     $services->set(ListValidator::class)->args([

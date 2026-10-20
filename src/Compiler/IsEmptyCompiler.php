@@ -28,8 +28,8 @@ final class IsEmptyCompiler extends AbstractDoctrineCompiler
         if ($field->endsOnToMany()) {
             return FieldAccess::none($context, $field);
         }
-        $field = IsNullCompiler::nullTarget($field);
-        $text = \in_array($field->leafType, FieldCapabilities::TEXT_TYPES, true);
+        $field = $field->asForeignKey();
+        $text = \in_array($field->valueType(), FieldCapabilities::TEXT_TYPES, true);
 
         return FieldAccess::matching(
             $context,

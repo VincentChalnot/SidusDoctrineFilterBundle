@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Sidus\DoctrineFilterBundle\Query;
 
+use Composer\InstalledVersions;
+use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\ORM\QueryBuilder;
 use Sidus\DoctrineFilterBundle\Metadata\FieldResolver;
+use Sidus\DoctrineFilterBundle\Metadata\NamedJoin;
 use Sidus\DoctrineFilterBundle\Metadata\ResolvedField;
 use Sidus\DoctrineFilterBundle\Metadata\ResolvedStep;
 
@@ -26,6 +29,8 @@ final class JoinRegistry
     private array $aliases = [];
 
     private int $existsCount = 0;
+
+    private bool $distinct = false;
 
     public function __construct(
         private readonly QueryBuilder $queryBuilder,
@@ -54,23 +59,43 @@ final class JoinRegistry
     }
 
     /**
-     * The alias reached after the first `$depth` steps of the field (0 is the root), joining the missing to-one
-     * prefixes.
+     * The alias reached after the first `$depth` steps of the field (0 is the root), joining the missing prefixes:
+     * to-one associations and named joins of cardinality one, plus collections when `$shared` (opt-in).
      */
-    public function alias(ResolvedField $field, int $depth): string
+    public function alias(ResolvedField $field, int $depth, bool $shared = false): string
     {
         $alias = $this->rootAlias;
         $key = '';
         for ($index = 0; $index < $depth; ++$index) {
             $step = $field->steps[$index];
             if ($step->toMany) {
-                throw new \LogicException(\sprintf('"%s": the to-many association "%s" cannot be joined as a shared prefix.', $field, $step->name));
+                if (!$shared && !$step->isSharedJoin()) {
+                    throw new \LogicException(\sprintf('"%s": the to-many association "%s" cannot be joined as a shared prefix.', $field, $step->name));
+                }
+                $this->distinct = true;
             }
             $key .= ('' === $key ? '' : '.').$step->name;
-            $alias = $this->aliases[$key] ??= $this->join($alias, $step, $key);
+            $alias = $this->aliases[$key] ??= null === $step->join ? $this->join($alias, $step, $key) : $this->joinNamed($step->join);
         }
 
         return $alias;
+    }
+
+    /**
+     * The right-hand side of a named join condition (`<alias>.<on.field> = <this>`): the column or foreign key of
+     * the `equals` path of the root, joining its to-one prefixes first.
+     */
+    public function onExpression(NamedJoin $join): string
+    {
+        $equals = $this->fields->resolve($join->equals)->asForeignKey();
+
+        return $this->alias($equals, \count($equals->steps)).'.'.$equals->leaf;
+    }
+
+    /** Whether a collection was joined: the root can come back several times. */
+    public function requiresDistinct(): bool
+    {
+        return $this->distinct;
     }
 
     /**
@@ -89,13 +114,33 @@ final class JoinRegistry
         return $alias;
     }
 
-    private function generate(string $key): string
+    private function joinNamed(NamedJoin $join): string
     {
-        $base = str_replace('.', '_', $key);
+        $condition = $this->onExpression($join); // joins its prefixes first: DQL wants them declared before use
+        $alias = $this->generate('j_'.$join->alias, false);
+        $this->queryBuilder->leftJoin($join->entity, $alias, self::arbitraryJoinCondition(), $alias.'.'.$join->onField.' = '.$condition);
+
+        return $alias;
+    }
+
+    /**
+     * Doctrine ORM 3.7 deprecates `WITH` for the condition of a join on an entity without association in favour of
+     * `ON`; earlier versions only know `WITH`.
+     */
+    private static function arbitraryJoinCondition(): string
+    {
+        static $type = null;
+
+        return $type ??= version_compare(InstalledVersions::getVersion('doctrine/orm') ?? '0', '3.7.0', '>=') ? Join::ON : Join::WITH;
+    }
+
+    private function generate(string $key, bool $dotted = true): string
+    {
+        $base = $dotted ? str_replace('.', '_', $key) : $key;
         $taken = array_fill_keys($this->queryBuilder->getAllAliases(), true);
-        $alias = $base.'_';
+        $alias = $dotted ? $base.'_' : $base;
         for ($suffix = 2; isset($taken[$alias]); ++$suffix) {
-            $alias = $base.'_'.$suffix.'_';
+            $alias = $base.'_'.$suffix.($dotted ? '_' : '');
         }
 
         return $alias;

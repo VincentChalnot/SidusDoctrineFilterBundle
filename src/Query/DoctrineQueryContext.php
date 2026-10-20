@@ -11,6 +11,7 @@ use Sidus\DoctrineFilterBundle\Dql\DqlFunctions;
 use Sidus\DoctrineFilterBundle\Metadata\FieldCapabilities;
 use Sidus\DoctrineFilterBundle\Metadata\ListMapping;
 use Sidus\DoctrineFilterBundle\Metadata\ResolvedField;
+use Sidus\DoctrineFilterBundle\Metadata\ResolvedStep;
 use Sidus\DoctrineFilterBundle\Platform\Dialect;
 use Sidus\FilterBundle\Definition\Field;
 use Sidus\FilterBundle\Provider\QueryContextInterface;
@@ -34,6 +35,7 @@ final class DoctrineQueryContext implements QueryContextInterface
         private readonly JoinRegistry $joins,
         public readonly ListMapping $mapping,
         public readonly Dialect $dialect,
+        private readonly JsonSupport $json,
     ) {
     }
 
@@ -85,7 +87,32 @@ final class DoctrineQueryContext implements QueryContextInterface
 
     public function isDistinct(): bool
     {
-        return $this->distinct;
+        return $this->distinct || $this->joins->requiresDistinct();
+    }
+
+    /**
+     * Whether the field opts in to joining its collections instead of one EXISTS per criterion: a filter with
+     * `provider_options.doctrine.join: shared`, or a path through a named join with `shared: true`.
+     */
+    public function isShared(ResolvedField $field): bool
+    {
+        return 'shared' === $this->fieldOption($field->field, 'join', 'exists')
+            || array_any($field->steps, static fn (ResolvedStep $step): bool => $step->isSharedJoin());
+    }
+
+    /**
+     * The DQL expression of a JSON path field on the alias of its entity.
+     *
+     * @throws \LogicException when the platform has no JSON path compiler, or cannot realise the cast
+     */
+    public function jsonColumn(ResolvedField $field, string $column): string
+    {
+        $compiler = $this->json->compiler ?? throw new \LogicException($this->json->refusal ?? 'JSON paths are not available.');
+        if (null !== ($reason = $this->json->castRefusal($field->field->cast))) {
+            throw new \LogicException(\sprintf('The JSON path "%s" cannot be compiled: %s.', $field->field, $reason));
+        }
+
+        return $compiler->compile($column, $field->field->json, $field->field->cast);
     }
 
     /**

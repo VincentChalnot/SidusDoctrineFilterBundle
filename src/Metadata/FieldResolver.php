@@ -24,12 +24,53 @@ final class FieldResolver
     private array $memo = [];
 
     /**
-     * @param class-string $rootEntity
+     * @param class-string               $rootEntity
+     * @param array<string, NamedJoin>   $joins      the named joins of the list, by alias
      */
     public function __construct(
         private readonly ManagerRegistry $registry,
         public readonly string $rootEntity,
+        private readonly array $joins = [],
     ) {
+    }
+
+    /** @return array<string, NamedJoin> */
+    public function joins(): array
+    {
+        return $this->joins;
+    }
+
+    /**
+     * Checks the named joins against the metadata: the alias does not shadow a field of the root, the entity is
+     * managed, `on.field` exists on it, `on.equals` is a to-one path of the root (never through a named join).
+     *
+     * @throws ConfigurationException
+     */
+    public function validateJoins(): void
+    {
+        $root = $this->metadata($this->rootEntity);
+        foreach ($this->joins as $alias => $join) {
+            $where = \sprintf('Join "%s"', $alias);
+            if ($root->hasField($alias) || $root->hasAssociation($alias) || isset($root->embeddedClasses[$alias])) {
+                throw new ConfigurationException(\sprintf('%s: the alias shadows the field or association "%s" of %s.', $where, $alias, $root->getName()));
+            }
+            $target = $this->metadata($join->entity);
+            if (!$target->hasField($join->onField) && !$target->hasAssociation($join->onField)) {
+                throw new ConfigurationException(\sprintf('%s: %s has no field or association "%s" (on.field).', $where, $target->getName(), $join->onField));
+            }
+            $firstSegment = explode('.', $join->equals)[0];
+            if (isset($this->joins[$firstSegment])) {
+                throw new ConfigurationException(\sprintf('%s: on.equals "%s" starts with the named join "%s": it must be a path of the root entity.', $where, $join->equals, $firstSegment));
+            }
+            try {
+                $equals = $this->resolve($join->equals);
+            } catch (ConfigurationException $e) {
+                throw new ConfigurationException(\sprintf('%s: on.equals: %s', $where, $e->getMessage()), previous: $e);
+            }
+            if ($equals->isToMany() || $equals->isJson()) {
+                throw new ConfigurationException(\sprintf('%s: on.equals "%s" must be a to-one path (it goes through a collection or a JSON path).', $where, $join->equals));
+            }
+        }
     }
 
     public function resolve(Field|string $field): ResolvedField
@@ -60,8 +101,22 @@ final class FieldResolver
         $last = \count($segments) - 1;
         $steps = [];
         $embedded = '';
+        if (null !== $field->cast && [] === $field->json) {
+            throw new ConfigurationException(\sprintf('Field path "%s": a cast applies to a JSON path only (%s->key::%s).', $field->path, $field->path, $field->cast));
+        }
         foreach ($segments as $index => $segment) {
             $name = $embedded.$segment;
+            if (0 === $index && isset($this->joins[$segment])) {
+                $join = $this->joins[$segment];
+                $target = $this->metadata($join->entity);
+                $identifiers = $target->getIdentifierFieldNames();
+                $steps[] = new ResolvedStep($segment, $this->rootEntity, $target->getName(), $join->isMany(), null, false, 1 === \count($identifiers) ? $identifiers[0] : null, $join);
+                if (0 === $last) {
+                    return $this->finish(new ResolvedField($field, $this->rootEntity, $steps, null, null));
+                }
+                $metadata = $target;
+                continue;
+            }
             if ('' === $embedded && $metadata->hasAssociation($segment)) {
                 $mapping = $metadata->getAssociationMapping($segment);
                 $target = $this->metadata($mapping->targetEntity);
@@ -77,7 +132,7 @@ final class FieldResolver
                 );
                 $steps[] = $step;
                 if ($index === $last) {
-                    return new ResolvedField($field, $this->rootEntity, $steps, null, null);
+                    return $this->finish(new ResolvedField($field, $this->rootEntity, $steps, null, null));
                 }
                 $metadata = $target;
                 continue;
@@ -96,7 +151,7 @@ final class FieldResolver
                 }
                 $mapping = $metadata->getFieldMapping($name);
 
-                return new ResolvedField($field, $this->rootEntity, $steps, $name, $mapping->type, $mapping->nullable ?? false, $metadata->getName());
+                return $this->finish(new ResolvedField($field, $this->rootEntity, $steps, $name, $mapping->type, $mapping->nullable ?? false, $metadata->getName()));
             }
             throw new ConfigurationException(\sprintf(
                 'Field path "%s": %s has no field or association "%s", available: %s.',
@@ -108,6 +163,15 @@ final class FieldResolver
         }
 
         throw new ConfigurationException(\sprintf('Field path "%s" could not be resolved.', $field->path));
+    }
+
+    private function finish(ResolvedField $resolved): ResolvedField
+    {
+        if ($resolved->isJson() && !\in_array($resolved->leafType, FieldCapabilities::JSON_TYPES, true)) {
+            throw new ConfigurationException(\sprintf('Field path "%s": a JSON path needs a JSON field, "%s" is of type "%s".', $resolved->field->path, $resolved->leaf ?? $resolved->field->path, $resolved->leafType ?? 'association'));
+        }
+
+        return $resolved;
     }
 
     /**

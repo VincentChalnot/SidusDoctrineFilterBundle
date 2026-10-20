@@ -57,10 +57,40 @@ final readonly class ResolvedField
         return [] !== $this->steps && $this->steps[\array_key_last($this->steps)]->toMany && $this->endsOnAssociation();
     }
 
-    /** The DBAL type of the values compared: the mapped type of the terminal field. */
+    /**
+     * The DBAL type of the values compared: the mapped type of the terminal field, or, for a JSON path, the type of
+     * the cast (`string` without one: JSON values are read as text).
+     */
     public function valueType(): ?string
     {
-        return $this->leafType;
+        if (!$this->isJson()) {
+            return $this->leafType;
+        }
+
+        return match ($this->field->cast) {
+            'integer' => 'integer',
+            'float' => 'float',
+            'boolean' => 'boolean',
+            'date' => 'datetimetz_immutable',
+            default => 'string',
+        };
+    }
+
+    /**
+     * The nullable column that stands for an association in a null / emptiness test or a join condition: its
+     * foreign key when it lives on the row (no join needed), the identifier of the joined target otherwise.
+     */
+    public function asForeignKey(): self
+    {
+        if (!$this->endsOnAssociation()) {
+            return $this;
+        }
+        $last = $this->steps[\array_key_last($this->steps)];
+        if ($last->joinColumnOnRow) {
+            return new self($this->field, $this->rootEntity, \array_slice($this->steps, 0, -1), $last->name, null, true);
+        }
+
+        return new self($this->field, $this->rootEntity, $this->steps, $last->targetIdentifier, null, true);
     }
 
     public function isJson(): bool
@@ -76,7 +106,7 @@ final readonly class ResolvedField
 
     public function isNullable(): bool
     {
-        return $this->leafNullable || $this->hasToOneStep();
+        return $this->leafNullable || $this->hasToOneStep() || $this->isJson();
     }
 
     public function __toString(): string

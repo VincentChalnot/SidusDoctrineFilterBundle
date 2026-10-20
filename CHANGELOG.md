@@ -14,3 +14,7 @@
   doctrine list against the Doctrine metadata.
 * PostgreSQL, SQLite, MariaDB and MySQL dialects; the contract suite runs on SQLite, and on PostgreSQL and
   MariaDB 12.3 when `SIDUS_FILTER_PG_DSN` / `SIDUS_FILTER_MYSQL_DSN` are set.
+* Named joins (`options.joins`: `{entity, on: {field, equals}, cardinality: one|many, shared}`) for entities
+  without an association; opt-in shared collections (`provider_options.doctrine.join: shared`) with a DISTINCT mode.
+* JSON paths (`Field` json path and cast) through `JsonPathCompilerInterface`: PostgreSQL (martin-georgiev),
+  MariaDB / MySQL (`SIDUS_JSON`); refused on SQLite.

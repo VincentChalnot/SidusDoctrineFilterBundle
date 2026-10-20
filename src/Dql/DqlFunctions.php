@@ -16,6 +16,7 @@ final class DqlFunctions
     public const string IREGEXP = 'SIDUS_IREGEXP';
     public const string ILIKE = 'SIDUS_ILIKE';
     public const string BINARY = 'SIDUS_BINARY';
+    public const string JSON = 'SIDUS_JSON';
 
     public static function register(Configuration $configuration): void
     {

@@ -93,7 +93,7 @@ final class ListValidator
 
         if (\in_array(Sort::class, $operations, true)) {
             foreach ($filter->options['columns'] ?? [] as $key => $column) {
-                $errors = [...$errors, ...$this->validateSortColumn($where, (string) $key, $column, $mapping)];
+                $errors = [...$errors, ...$this->validateSortColumn($where, (string) $key, $column, $mapping, $platform)];
             }
         }
 
@@ -103,6 +103,10 @@ final class ListValidator
             $resolved = $this->resolve($where.\sprintf(', attribute "%s"', $field), $field, $mapping, $errors);
             if (null === $resolved) {
                 continue;
+            }
+            $errors = [...$errors, ...$this->validateJson($where.\sprintf(', attribute "%s"', $field), $resolved, $platform)];
+            if ('shared' === ($filter->getProviderOptions(DoctrineQueryHandlerFactory::PROVIDER)['join'] ?? null) && !$resolved->isToMany()) {
+                $errors[] = \sprintf('%s, attribute "%s": provider_options.doctrine.join "shared" has no effect on a path without a collection.', $where, $field);
             }
             foreach ($fieldOperations as $class) {
                 if (null !== ($reason = FieldCapabilities::refusal($class, $resolved))) {
@@ -126,7 +130,7 @@ final class ListValidator
      *
      * @return list<string>
      */
-    private function validateSortColumn(string $where, string $key, array $column, ListMapping $mapping): array
+    private function validateSortColumn(string $where, string $key, array $column, ListMapping $mapping, PlatformProbe $platform): array
     {
         $where .= \sprintf(', sort column "%s"', $key);
         $options = $column['provider_options'][DoctrineQueryHandlerFactory::PROVIDER] ?? [];
@@ -139,8 +143,26 @@ final class ListValidator
         if (null !== $resolved && null !== ($reason = FieldCapabilities::sortRefusal($resolved, $options['aggregate'] ?? null))) {
             $errors[] = \sprintf('%s: cannot sort on "%s": %s.', $where, $field, $reason);
         }
+        if (null !== $resolved) {
+            $errors = [...$errors, ...$this->validateJson($where, $resolved, $platform)];
+        }
 
         return $errors;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function validateJson(string $where, ResolvedField $field, PlatformProbe $platform): array
+    {
+        $dialect = $platform->dialect();
+        if (!$field->isJson() || null === $dialect) {
+            return [];
+        }
+        $support = $this->factory->jsonSupport($dialect);
+        $reason = $support->refusal ?? $support->castRefusal($field->field->cast);
+
+        return null === $reason ? [] : [\sprintf('%s: the JSON path "%s" cannot be compiled: %s', $where, $field->field, $reason)];
     }
 
     /**

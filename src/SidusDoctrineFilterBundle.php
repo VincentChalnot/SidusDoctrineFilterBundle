@@ -6,6 +6,7 @@ namespace Sidus\DoctrineFilterBundle;
 
 use Sidus\DoctrineFilterBundle\Compiler\DoctrineCriterionCompilerInterface;
 use Sidus\DoctrineFilterBundle\Compiler\DoctrineSortCompilerInterface;
+use Sidus\DoctrineFilterBundle\Query\JsonPathCompilerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
@@ -16,6 +17,7 @@ use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 final class SidusDoctrineFilterBundle extends AbstractBundle
 {
     public const string COMPILER_TAG = 'sidus_doctrine_filter.compiler';
+    public const string JSON_COMPILER_TAG = 'sidus_doctrine_filter.json_compiler';
 
     /**
      * @param array<string, mixed> $config
@@ -26,5 +28,6 @@ final class SidusDoctrineFilterBundle extends AbstractBundle
 
         $builder->registerForAutoconfiguration(DoctrineCriterionCompilerInterface::class)->addTag(self::COMPILER_TAG);
         $builder->registerForAutoconfiguration(DoctrineSortCompilerInterface::class)->addTag(self::COMPILER_TAG);
+        $builder->registerForAutoconfiguration(JsonPathCompilerInterface::class)->addTag(self::JSON_COMPILER_TAG);
     }
 }

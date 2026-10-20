@@ -37,9 +37,26 @@ abstract class DoctrineTestCase extends TestCase
         FixtureLoader::load(static::entityManager());
     }
 
+    /** @return 'sqlite'|'pgsql'|'mysql' */
+    protected static function platform(): string
+    {
+        return 'sqlite';
+    }
+
     public static function setUpBeforeClass(): void
     {
-        static::bootKernel(static::kernelOptions());
+        $variable = ['pgsql' => 'SIDUS_FILTER_PG_DSN', 'mysql' => 'SIDUS_FILTER_MYSQL_DSN'][static::platform()] ?? null;
+        if (null !== $variable && false === getenv($variable)) {
+            return;
+        }
+        static::bootKernel(['platform' => static::platform()] + static::kernelOptions());
+    }
+
+    protected function setUp(): void
+    {
+        if (null === self::$kernel) {
+            self::markTestSkipped('The database of the platform "'.static::platform().'" is not configured (SIDUS_FILTER_PG_DSN / SIDUS_FILTER_MYSQL_DSN).');
+        }
     }
 
     public static function tearDownAfterClass(): void

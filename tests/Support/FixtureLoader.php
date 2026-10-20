@@ -9,6 +9,8 @@ use Doctrine\ORM\Tools\SchemaTool;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Author;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Company;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Post;
+use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Profile;
+use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Review;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Tag;
 use Sidus\FilterBundle\Test\Contract\FixtureDataset;
 
@@ -45,6 +47,13 @@ final class FixtureLoader
             foreach ($data['tags'] as $tag) {
                 $em->persist(new Tag($tag['id'], $tag['label'], $post));
             }
+        }
+        // Alice and Émile have a profile; bob has none.
+        $em->persist(new Profile(1, 1, 'Alice bio'));
+        $em->persist(new Profile(2, 3, 'Émile bio'));
+        // Reviews: post 1 has scores 5 and 3, post 2 has 4, post 4 has 5 twice, post 5 has 1.
+        foreach ([[1, 1, 5, 'great'], [2, 1, 3, 'ok'], [3, 2, 4, null], [4, 4, 5, 'great'], [5, 4, 5, 'great again'], [6, 5, 1, 'bad']] as [$id, $post, $score, $comment]) {
+            $em->persist(new Review($id, $post, $score, $comment));
         }
         $em->flush();
         $em->clear();
