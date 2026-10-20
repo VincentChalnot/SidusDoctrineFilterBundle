@@ -22,3 +22,5 @@
   provider contract on PostgreSQL and MariaDB.
 * `relation` filter type (`Equals` / `In` on the identifier of an association, foreign key without join for to-one
   paths) and its `EntityType` form mapper; validated at warm-up.
+* Computed sorts (`provider_options.doctrine.expression`, several keys with pinned directions); named joins may be
+  chained through shared joins (cycles refused); aggregate sorts and expressions order nulls first / last on PostgreSQL.

@@ -21,6 +21,9 @@ abstract class AbstractNamedJoinTestCase extends DoctrineTestCase
         'review' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'id'], 'cardinality' => 'many'],
         // ... or one shared join.
         'shared_review' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'id'], 'cardinality' => 'many', 'shared' => true],
+        // A chain: the second join is on the first one (shared collections: joined, not correlated).
+        'first' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'id'], 'cardinality' => 'many', 'shared' => true],
+        'second' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'first.postId'], 'cardinality' => 'many', 'shared' => true],
     ];
 
     /**
@@ -147,5 +150,73 @@ abstract class AbstractNamedJoinTestCase extends DoctrineTestCase
 
         self::assertSame([5], $probe->ids());
         self::assertSame(1, substr_count($probe->dql(), 'LEFT JOIN root.author'));
+    }
+
+    public function testANamedJoinCanBeOnAnotherSharedOne(): void
+    {
+        $specs = [
+            'a' => ['type' => 'exact', 'attributes' => ['first.score']],
+            'b' => ['type' => 'exact', 'attributes' => ['second.score']],
+        ];
+
+        $probe = $this->probe($specs, ['filters' => ['a' => '5', 'b' => '3']], null, true);
+
+        self::assertSame([1], $probe->ids(), 'a review scoring 5 and, on the same post, one scoring 3');
+        self::assertSame(1, $probe->total);
+        $on = self::condition();
+        self::assertStringContainsString(
+            'LEFT JOIN '.Review::class.' j_first '.$on.' j_first.postId = root.id LEFT JOIN '.Review::class.' j_second '.$on.' j_second.postId = j_first.postId',
+            $probe->dql(),
+            'the referenced join comes first',
+        );
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private static function computedSort(): array
+    {
+        return ['sort' => ['type' => 'sort', 'options' => ['columns' => [
+            'views' => ['field' => 'views', 'provider_options' => ['doctrine' => ['expression' => 'COALESCE({root}.views, 0)']]],
+            'nulls_last' => ['field' => 'views', 'provider_options' => ['doctrine' => ['expression' => [
+                ['expression' => 'CASE WHEN {root}.views IS NULL THEN 1 ELSE 0 END', 'direction' => 'asc'],
+                '{root}.views',
+            ]]]],
+        ]]]];
+    }
+
+    public function testAnExpressionSortOrdersByAComputedKey(): void
+    {
+        $specs = self::computedSort();
+
+        $asc = $this->probe($specs, ['sort' => 'views']);
+        self::assertSame([3, 5, 2, 1, 4, 6], $asc->ids(), 'a null view counts as 0');
+        self::assertStringContainsString('(COALESCE(root.views, 0)) AS HIDDEN sort_1_1', $asc->dql());
+        self::assertSame([6, 1, 4, 2, 5, 3], $this->probe($specs, ['sort' => '-views'])->ids());
+    }
+
+    public function testAnExpressionSortCanPinTheDirectionOfAKey(): void
+    {
+        $specs = self::computedSort();
+
+        // The first key (null flag) is pinned ascending whatever the direction asked: nulls last both ways.
+        self::assertSame([5, 2, 1, 4, 6, 3], $this->probe($specs, ['sort' => 'nulls_last'])->ids());
+        self::assertSame([6, 1, 4, 2, 5, 3], $this->probe($specs, ['sort' => '-nulls_last'])->ids());
+        self::assertSame(1, substr_count($this->probe($specs, ['sort' => 'nulls_last'])->dql(), 'ORDER BY'));
+    }
+
+    public function testToManyAggregateSortsOnEveryPlatform(): void
+    {
+        $columns = [
+            'tags' => ['field' => 'tags', 'provider_options' => ['doctrine' => ['aggregate' => 'count']]],
+            'first_tag' => ['field' => 'tags.label', 'provider_options' => ['doctrine' => ['aggregate' => 'min']]],
+        ];
+        $specs = ['sort' => ['type' => 'sort', 'options' => ['columns' => $columns]]];
+
+        self::assertSame([3, 2, 6, 1, 4, 5], $this->probe($specs, ['sort' => 'tags'])->ids());
+        self::assertSame([1, 4, 5, 2, 6, 3], $this->probe($specs, ['sort' => '-tags'])->ids());
+        // Nulls (no tag) first ascending, then "100%", "php" (1, 2, 5), "symfony".
+        self::assertSame([3, 4, 1, 2, 5, 6], self::execute(self::list($specs, ['binary_sort' => true]), ['sort' => 'first_tag'])->ids());
+        self::assertSame([6, 1, 2, 5, 4, 3], self::execute(self::list($specs, ['binary_sort' => true]), ['sort' => '-first_tag'])->ids());
     }
 }

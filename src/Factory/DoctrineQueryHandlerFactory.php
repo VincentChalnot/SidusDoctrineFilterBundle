@@ -96,17 +96,27 @@ final class DoctrineQueryHandlerFactory implements QueryHandlerFactoryInterface
         if (!$manager instanceof EntityManagerInterface) {
             throw new ConfigurationException(\sprintf('List "%s": %s is not managed by a Doctrine ORM entity manager.', $definition->code, $entity));
         }
-        DqlFunctions::register($manager->getConfiguration());
         $dialect = Dialect::of($manager->getConnection()->getDatabasePlatform());
+        $json = $this->prepare($manager, $dialect);
         $mapping = $this->mapping($definition);
         if (!$dialect->isPostgreSql() && \in_array('ilike', array_column($mapping->fieldOptions, 'case_insensitive'), true)) {
             throw new ConfigurationException(\sprintf('List "%s": case_insensitive "ilike" is available on PostgreSQL only, the connection is %s.', $definition->code, $dialect->name()));
         }
 
+        return new DoctrineQueryHandler($definition, $filterTypes, $countStrategy, $manager, $this->compiler, $mapping, $dialect, $json);
+    }
+
+    /**
+     * Registers the DQL functions the compilers emit on the entity manager (idempotent) and returns the JSON support
+     * of the dialect.
+     */
+    public function prepare(EntityManagerInterface $manager, Dialect $dialect): JsonSupport
+    {
+        DqlFunctions::register($manager->getConfiguration());
         $json = $this->jsonSupport($dialect);
         $json->compiler?->registerFunctions($manager->getConfiguration());
 
-        return new DoctrineQueryHandler($definition, $filterTypes, $countStrategy, $manager, $this->compiler, $mapping, $dialect, $json);
+        return $json;
     }
 
     /**

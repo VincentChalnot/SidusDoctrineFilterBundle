@@ -10,6 +10,7 @@ use Sidus\DoctrineFilterBundle\Metadata\NamedJoin;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Profile;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Review;
 use Sidus\DoctrineFilterBundle\Tests\Support\DoctrineTestCase;
+use Sidus\DoctrineFilterBundle\Validation\ListValidator;
 use Sidus\FilterBundle\Exception\ConfigurationException;
 use Sidus\FilterBundle\Registry\FilterTypeRegistry;
 use Symfony\Component\OptionsResolver\OptionsResolver;
@@ -68,7 +69,9 @@ final class NamedJoinConfigTest extends DoctrineTestCase
         yield 'unknown on.field' => [['r' => ['entity' => Review::class, 'on' => ['field' => 'nope', 'equals' => 'id']]], 'has no field or association "nope" (on.field)'];
         yield 'unknown equals' => [['r' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'nope']]], 'on.equals: Field path "nope"'];
         yield 'equals through a collection' => [['r' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'tags.id']]], 'must be a to-one path'];
-        yield 'equals through a named join' => [['a' => $review, 'b' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'a.id']]], 'starts with the named join "a"'];
+        yield 'equals through a many join that is not shared' => [['a' => $review + ['cardinality' => 'many'], 'b' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'a.postId']]], 'goes through the named join "a" of cardinality many, which is a correlated EXISTS'];
+        yield 'cycle' => [['a' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'b.postId']], 'b' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'a.postId']]], 'in a cycle'];
+        yield 'self reference' => [['a' => ['entity' => Review::class, 'on' => ['field' => 'postId', 'equals' => 'a.postId']]], 'in a cycle'];
         yield 'unmanaged entity' => [['r' => ['entity' => \stdClass::class, 'on' => ['field' => 'postId', 'equals' => 'id']]], 'stdClass is not a Doctrine managed entity'];
     }
 
@@ -102,5 +105,24 @@ final class NamedJoinConfigTest extends DoctrineTestCase
 
         self::assertCount(1, $errors);
         self::assertStringContainsString('attribute "title": provider_options.doctrine.join "shared" has no effect on a path without a collection', $errors[0]);
+    }
+
+    public function testExpressionSortOptionsAreValidated(): void
+    {
+        $validator = self::$kernel->getContainer()->get('test.service_container')->get(ListValidator::class);
+        $sort = static fn (mixed $expression, array $extra = []): array => $validator->validate(self::list(['sort' => ['type' => 'sort', 'options' => ['columns' => [
+            'c' => ['field' => 'views', 'provider_options' => ['doctrine' => ['expression' => $expression] + $extra]],
+        ]]]]));
+
+        self::assertSame([], $sort('COALESCE({root}.views, 0)'));
+        self::assertSame([], $sort([['expression' => '{root}.views', 'direction' => 'desc'], '{root}.title']));
+
+        self::assertStringContainsString('expression: an expression must be a non-empty DQL string', $sort('')[0]);
+        self::assertStringContainsString('the direction of an expression key must be same, asc or desc', $sort([['expression' => 'x', 'direction' => 'up']])[0]);
+        self::assertStringContainsString('unknown key(s) dir', $sort([['expression' => 'x', 'dir' => 'asc']])[0]);
+        self::assertStringContainsString('aggregate and expression are exclusive', implode("\n", $sort('{root}.views', ['aggregate' => 'count'])));
+        $broken = $sort('COALESCE({root}.nope, 0)');
+        self::assertCount(1, $broken);
+        self::assertStringContainsString('the expression "COALESCE({root}.nope, 0)" does not compile', $broken[0]);
     }
 }

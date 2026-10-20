@@ -6,6 +6,7 @@ namespace Sidus\DoctrineFilterBundle\Validation;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
+use Sidus\DoctrineFilterBundle\Compiler\ExpressionSort;
 use Sidus\DoctrineFilterBundle\Factory\DoctrineQueryHandlerFactory;
 use Sidus\DoctrineFilterBundle\Filter\RelationFilterType;
 use Sidus\DoctrineFilterBundle\Metadata\FieldCapabilities;
@@ -31,7 +32,7 @@ use Sidus\FilterBundle\Registry\FilterTypeRegistry;
  */
 final class ListValidator
 {
-    private const array SORT_OPTIONS = ['aggregate'];
+    private const array SORT_OPTIONS = ['aggregate', 'expression'];
 
     public function __construct(
         private readonly DoctrineQueryHandlerFactory $factory,
@@ -173,11 +174,49 @@ final class ListValidator
         }
         $field = Field::fromArray($column['field']);
         $resolved = $this->resolve($where, $field, $mapping, $errors);
+        if (isset($options['expression'])) {
+            if (isset($options['aggregate'])) {
+                $errors[] = $where.': aggregate and expression are exclusive.';
+            }
+
+            return [...$errors, ...$this->validateExpression($where, $options['expression'], $mapping, $platform)];
+        }
         if (null !== $resolved && null !== ($reason = FieldCapabilities::sortRefusal($resolved, $options['aggregate'] ?? null))) {
             $errors[] = \sprintf('%s: cannot sort on "%s": %s.', $where, $field, $reason);
         }
         if (null !== $resolved) {
             $errors = [...$errors, ...$this->validateJson($where, $resolved, $platform)];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * The structure of the expression, then a dry run: the DQL is parsed (and translated to SQL) on the entity, so a
+     * typo in a computed sort fails at warm-up. The dry run needs the connection (skipped when unreachable).
+     *
+     * @return list<string>
+     */
+    private function validateExpression(string $where, mixed $expression, ListMapping $mapping, PlatformProbe $platform): array
+    {
+        try {
+            $keys = ExpressionSort::keys($expression);
+        } catch (\InvalidArgumentException $e) {
+            return [\sprintf('%s: provider_options.doctrine.expression: %s', $where, $e->getMessage())];
+        }
+        $dialect = $platform->dialect();
+        if (null === $dialect) {
+            return [];
+        }
+        $manager = $platform->entityManager();
+        $this->factory->prepare($manager, $dialect);
+        $errors = [];
+        foreach ($keys as ['expression' => $dql]) {
+            try {
+                $manager->createQuery(\sprintf('SELECT root, (%s) AS HIDDEN probe FROM %s root', ExpressionSort::dql($dql, DoctrineQueryHandlerFactory::ROOT_ALIAS), $mapping->entity))->getSQL();
+            } catch (\Throwable $e) {
+                $errors[] = \sprintf('%s: the expression "%s" does not compile: %s', $where, $dql, $e->getMessage());
+            }
         }
 
         return $errors;

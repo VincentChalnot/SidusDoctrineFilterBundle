@@ -42,7 +42,8 @@ final class FieldResolver
 
     /**
      * Checks the named joins against the metadata: the alias does not shadow a field of the root, the entity is
-     * managed, `on.field` exists on it, `on.equals` is a to-one path of the root (never through a named join).
+     * managed, `on.field` exists on it, `on.equals` is a to-one path of the root, or starts with another named join that
+     * is joined (cardinality one, or many with `shared`), without cycles.
      *
      * @throws ConfigurationException
      */
@@ -60,14 +61,20 @@ final class FieldResolver
             }
             $firstSegment = explode('.', $join->equals)[0];
             if (isset($this->joins[$firstSegment])) {
-                throw new ConfigurationException(\sprintf('%s: on.equals "%s" starts with the named join "%s": it must be a path of the root entity.', $where, $join->equals, $firstSegment));
+                $referenced = $this->joins[$firstSegment];
+                if ($referenced->isMany() && !$referenced->shared) {
+                    throw new ConfigurationException(\sprintf('%s: on.equals "%s" goes through the named join "%s" of cardinality many, which is a correlated EXISTS and cannot be referenced: declare it with shared: true (the chain is then joined, in DISTINCT mode).', $where, $join->equals, $firstSegment));
+                }
+                if ($this->dependsOn($alias, $firstSegment)) {
+                    throw new ConfigurationException(\sprintf('%s: on.equals "%s" makes the named joins depend on each other in a cycle.', $where, $join->equals));
+                }
             }
             try {
                 $equals = $this->resolve($join->equals);
             } catch (ConfigurationException $e) {
                 throw new ConfigurationException(\sprintf('%s: on.equals: %s', $where, $e->getMessage()), previous: $e);
             }
-            if ($equals->isToMany() || $equals->isJson()) {
+            if (array_any($equals->steps, static fn (ResolvedStep $step): bool => $step->toMany && !$step->isSharedJoin()) || $equals->isJson()) {
                 throw new ConfigurationException(\sprintf('%s: on.equals "%s" must be a to-one path (it goes through a collection or a JSON path).', $where, $join->equals));
             }
         }
@@ -164,6 +171,20 @@ final class FieldResolver
         }
 
         throw new ConfigurationException(\sprintf('Field path "%s" could not be resolved.', $field->path));
+    }
+
+    /** Whether the named join `$from` (transitively) refers to `$to` in its `equals` path. */
+    private function dependsOn(string $from, string $to, array $seen = []): bool
+    {
+        if ($from === $to) {
+            return true;
+        }
+        if (isset($seen[$to])) {
+            return false;
+        }
+        $next = explode('.', $this->joins[$to]->equals)[0];
+
+        return isset($this->joins[$next]) && $this->dependsOn($from, $next, [...$seen, $to => true]);
     }
 
     private function finish(ResolvedField $resolved): ResolvedField

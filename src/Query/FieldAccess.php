@@ -59,8 +59,10 @@ final class FieldAccess
      * A scalar subquery aggregating over a to-many path (`COUNT`, `MIN`, `MAX`), correlated with the root row.
      *
      * @param 'count'|'min'|'max' $aggregate
+     * @param bool                $nullFlag  select 1 when the aggregate is NULL (no element, or only NULL values) and 0 otherwise,
+     *                                       the null-ordering key of the aggregate
      */
-    public static function aggregate(DoctrineQueryContext $context, ResolvedField $field, string $aggregate): string
+    public static function aggregate(DoctrineQueryContext $context, ResolvedField $field, string $aggregate, bool $nullFlag = false): string
     {
         $first = $field->firstToMany() ?? throw new \LogicException(\sprintf('"%s" is not a to-many path.', $field));
 
@@ -68,7 +70,11 @@ final class FieldAccess
             $context,
             $field,
             $first,
-            static fn (string $alias, string $column): string => strtoupper($aggregate).'('.($field->endsOnAssociation() ? $alias : $column).')',
+            static function (string $alias, string $column) use ($field, $aggregate, $nullFlag): string {
+                $call = strtoupper($aggregate).'('.($field->endsOnAssociation() ? $alias : $column).')';
+
+                return $nullFlag ? 'CASE WHEN '.$call.' IS NULL THEN 1 ELSE 0 END' : $call;
+            },
             null,
         ).')';
     }

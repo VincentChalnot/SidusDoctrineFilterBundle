@@ -121,6 +121,11 @@ options:
   per request on first use by any filter, sort column or customizer. `<expr>` is the `equals` path of the root, whose
   to-one prefixes are joined first (`page_pages_.sdsFile`): it never goes through a collection or another named join.
   (`WITH` before ORM 3.7, which deprecates it for arbitrary joins.)
+* **Referencing the root**: `equals` is a path of the root, so `equals: id` (the identifier) gives
+  `alias.field = root.id`: what the qk handler spelled `reference: sdsFile`.
+* **Chains**: `equals` may start with another named join, provided that join is joined, i.e. cardinality `one`, or
+  `many` with `shared: true` (`Pages` then `Page` then `Line`: `equals: Pages.id`, `equals: Page.id`, all shared). It is
+  joined first, cycles are refused. A `many` join that is not shared is a correlated `EXISTS` and cannot be referenced.
 * `cardinality: many`: behaves like a to-many association: each criterion is a correlated
   `EXISTS (SELECT 1 FROM Review x1_review WHERE x1_review.postId = root.id AND ...)`.
 * Validated at warm-up: the alias must not shadow a field or association of the root, the entity must be managed,
@@ -187,6 +192,28 @@ Without a sort filter the page is still ordered by the identifier.
 * **A to-many column is a configuration error unless an aggregate is declared**:
   `{ field: tags, provider_options: { doctrine: { aggregate: count } } }` (`min` / `max` need a scalar field),
   compiled as a correlated scalar subquery in a hidden select (`... AS HIDDEN sort_1`).
+
+### Computed sorts: `expression`
+
+A sort column can order by DQL written in the configuration (allow-listed by construction, never request input),
+for ratios and flags the mapping cannot express. `{root}` is the root alias; the column's `field` must still resolve
+(it is only used to name the column):
+
+```yaml
+columns:
+    ratio:
+        field: total
+        provider_options:
+            doctrine:
+                expression:
+                    - { expression: 'CASE WHEN {root}.total = 0 THEN 1 ELSE 0 END', direction: asc }   # empty last, whatever the direction
+                    - '{root}.valid / NULLIF({root}.total, 0)'                                           # same direction as asked
+                    - { expression: '{root}.valid', direction: desc }                                   # higher is better
+```
+
+A string is one key; a list gives several, each a string or `{expression, direction: same|asc|desc}`. Each key is a
+hidden select; nulls first ascending / last descending applies to each, like any column. Exclusive with `aggregate`.
+At warm-up every expression is parsed against the entity, so a typo fails `cache:warmup`.
 
 ## Count
 

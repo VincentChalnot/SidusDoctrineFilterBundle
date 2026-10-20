@@ -25,6 +25,11 @@ final class PlatformProbe
     {
     }
 
+    public function entityManager(): EntityManagerInterface
+    {
+        return $this->entityManager;
+    }
+
     /** The dialect of the connection, null when it is unreachable or unsupported. */
     public function dialect(): ?Dialect
     {

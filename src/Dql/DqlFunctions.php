@@ -17,10 +17,11 @@ final class DqlFunctions
     public const string ILIKE = 'SIDUS_ILIKE';
     public const string BINARY = 'SIDUS_BINARY';
     public const string JSON = 'SIDUS_JSON';
+    public const string IS_NULL = 'SIDUS_IS_NULL';
 
     public static function register(Configuration $configuration): void
     {
-        foreach ([self::REGEXP => RegexpFunction::class, self::IREGEXP => IregexpFunction::class, self::ILIKE => IlikeFunction::class] as $name => $class) {
+        foreach ([self::REGEXP => RegexpFunction::class, self::IREGEXP => IregexpFunction::class, self::ILIKE => IlikeFunction::class, self::IS_NULL => IsNullKeyFunction::class] as $name => $class) {
             if (null === $configuration->getCustomNumericFunction($name)) {
                 $configuration->addCustomNumericFunction($name, $class);
             }

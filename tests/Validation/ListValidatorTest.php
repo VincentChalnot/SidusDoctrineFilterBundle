@@ -79,7 +79,7 @@ final class ListValidatorTest extends DoctrineTestCase
         self::assertCount(6, $errors, implode("\n", $errors));
         self::assertStringContainsString('sort column "unknown": Field path "nope"', $errors[0]);
         self::assertStringContainsString('sort column "tag": cannot sort on "tags.label": "tags.label" goes through a to-many association: a sort needs an aggregate', $errors[1]);
-        self::assertStringContainsString('sort column "typo": unknown provider_options.doctrine key "agregate" (allowed: aggregate)', $errors[2]);
+        self::assertStringContainsString('sort column "typo": unknown provider_options.doctrine key "agregate" (allowed: aggregate, expression)', $errors[2]);
         self::assertStringContainsString('sort column "typo": cannot sort on "tags": "tags" goes through a to-many association', $errors[3]);
         self::assertStringContainsString('sort column "bad_aggregate": cannot sort on "tags.label": unknown aggregate "sum"', $errors[4]);
         self::assertStringContainsString('sort column "meta": cannot sort on "meta": the type "json" cannot be ordered', $errors[5]);
