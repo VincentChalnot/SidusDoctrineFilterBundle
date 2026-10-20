@@ -6,6 +6,7 @@ namespace Sidus\DoctrineFilterBundle\Tests\App;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Sidus\DoctrineFilterBundle\SidusDoctrineFilterBundle;
+use Sidus\DoctrineFilterBundle\Tests\Support\RecordingLogger;
 use Sidus\DoctrineFilterBundle\Tests\Support\SqliteDriver;
 use Sidus\FilterBundle\SidusFilterBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
@@ -29,6 +30,7 @@ final class TestKernel extends Kernel
         private readonly ?\Closure $configure = null,
         private readonly string $id = 'default',
         private readonly bool $usePostgres = false,
+        private readonly bool $recordQueries = false,
     ) {
         parent::__construct('test', true);
     }
@@ -36,19 +38,22 @@ final class TestKernel extends Kernel
     /**
      * @param array<string, array<string, mixed>>        $lists
      * @param \Closure(ContainerConfigurator): void|null $services
-     * @param array<string, mixed>                       $doctrineOrm extra `doctrine.orm` configuration
+     * @param array{id?: string, postgres?: bool, record_queries?: bool} $options `record_queries` logs every SQL
+     *                                                                              statement into {@see RecordingLogger}
      */
-    public static function create(array $lists, ?\Closure $services = null, ?string $id = null, bool $usePostgres = false, array $doctrineOrm = []): self
+    public static function create(array $lists, ?\Closure $services = null, array $options = []): self
     {
-        return new self(static function (ContainerConfigurator $container) use ($lists, $services, $doctrineOrm): void {
+        $record = $options['record_queries'] ?? false;
+
+        return new self(static function (ContainerConfigurator $container) use ($lists, $services, $record): void {
             $container->extension('sidus_filter', ['lists' => $lists]);
-            if ([] !== $doctrineOrm) {
-                $container->extension('doctrine', ['orm' => $doctrineOrm]);
+            if ($record) {
+                $container->services()->set('logger', RecordingLogger::class)->public();
             }
             if (null !== $services) {
                 $services($container);
             }
-        }, $id ?? uniqid('k', true), $usePostgres);
+        }, $options['id'] ?? uniqid('k', true), $options['postgres'] ?? false, $record);
     }
 
     public function registerBundles(): iterable
@@ -85,10 +90,11 @@ final class TestKernel extends Kernel
     protected function configureContainer(ContainerConfigurator $container): void
     {
         $container->extension('framework', ['test' => true, 'secret' => 'test', 'http_method_override' => false]);
+        $connection = $this->usePostgres
+            ? ['url' => (string) getenv('SIDUS_FILTER_PG_DSN')]
+            : ['driver' => 'pdo_sqlite', 'driver_class' => SqliteDriver::class, 'memory' => true];
         $container->extension('doctrine', [
-            'dbal' => ['connections' => ['default' => $this->usePostgres
-                ? ['url' => (string) getenv('SIDUS_FILTER_PG_DSN'), 'logging' => false, 'profiling' => false]
-                : ['driver' => 'pdo_sqlite', 'driver_class' => SqliteDriver::class, 'memory' => true, 'logging' => false, 'profiling' => false]]],
+            'dbal' => ['connections' => ['default' => $connection + ['logging' => $this->recordQueries, 'profiling' => false]]],
             'orm' => ['mappings' => ['Fixtures' => [
                 'type' => 'attribute',
                 'is_bundle' => false,

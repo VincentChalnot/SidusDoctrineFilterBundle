@@ -17,10 +17,14 @@ class Company
     #[ORM\Column(type: 'string', length: 100)]
     private string $name;
 
-    public function __construct(int $id, string $name)
+    #[ORM\Embedded(class: Address::class)]
+    private Address $address;
+
+    public function __construct(int $id, string $name, ?string $city = null)
     {
         $this->id = $id;
         $this->name = $name;
+        $this->address = new Address($city);
     }
 
     public function getId(): int

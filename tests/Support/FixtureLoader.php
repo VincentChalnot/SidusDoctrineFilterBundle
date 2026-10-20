@@ -25,7 +25,7 @@ final class FixtureLoader
         $tool->dropSchema($metadata);
         $tool->createSchema($metadata);
 
-        $companies = [1 => new Company(1, 'Acme'), 3 => new Company(2, 'Globex')];
+        $companies = [1 => new Company(1, 'Acme', 'Lyon'), 3 => new Company(2, 'Globex', 'Paris')];
         foreach ($companies as $company) {
             $em->persist($company);
         }
@@ -37,7 +37,8 @@ final class FixtureLoader
         foreach (FixtureDataset::posts() as $data) {
             $post = new Post($data['id'], $data['title'], $data['status']);
             $post->setViews($data['views']);
-            $post->setPublishedAt($data['publishedAt']);
+            // As an application stores its dates: in the PHP default timezone (DBAL does not convert).
+            $post->setPublishedAt($data['publishedAt']?->setTimezone(new \DateTimeZone(date_default_timezone_get())));
             $post->setSummary($data['summary']);
             $post->setAuthor(null === $data['author'] ? null : $authors[$data['author']['id']]);
             $em->persist($post);
