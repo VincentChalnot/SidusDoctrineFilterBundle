@@ -1,0 +1,73 @@
+name: CI
+
+on:
+    push:
+    pull_request:
+
+jobs:
+    tests:
+        name: PHP ${{ matrix.php }}, Symfony ${{ matrix.symfony }}, ${{ matrix.dependencies }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                php: ['8.4', '8.5']
+                symfony: ['8.1.*', '8.*']
+                dependencies: [lowest, highest]
+        env:
+            SYMFONY_REQUIRE: ${{ matrix.symfony }}
+            # The contract suite runs on SQLite, PostgreSQL and MariaDB (its default, accent-insensitive collation).
+            SIDUS_FILTER_PG_DSN: 'pdo-pgsql://postgres:sidus@127.0.0.1:5432/sidus?serverVersion=17.0'
+            SIDUS_FILTER_MYSQL_DSN: 'pdo-mysql://root:sidus@127.0.0.1:3306/sidus?charset=utf8mb4&serverVersion=mariadb-12.3.0'
+        services:
+            postgres:
+                image: postgres:17
+                env:
+                    POSTGRES_PASSWORD: sidus
+                    POSTGRES_DB: sidus
+                ports: ['5432:5432']
+                options: >-
+                    --health-cmd "pg_isready -U postgres"
+                    --health-interval 5s --health-timeout 5s --health-retries 10
+            mariadb:
+                image: mariadb:12.3
+                env:
+                    MARIADB_ROOT_PASSWORD: sidus
+                    MARIADB_DATABASE: sidus
+                ports: ['3306:3306']
+                options: >-
+                    --health-cmd "healthcheck.sh --connect --innodb_initialized"
+                    --health-interval 5s --health-timeout 5s --health-retries 20
+        steps:
+            # The core is consumed through a Composer path repository (../SidusFilterBundle) until it is tagged:
+            # check both repositories out side by side.
+            - uses: actions/checkout@v4
+              with:
+                  path: SidusDoctrineFilterBundle
+
+            - uses: actions/checkout@v4
+              with:
+                  repository: VincentChalnot/SidusFilterBundle
+                  ref: v7.x
+                  path: SidusFilterBundle
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: ${{ matrix.php }}
+                  coverage: none
+                  extensions: intl, mbstring, pdo_sqlite, pdo_pgsql, pdo_mysql
+                  tools: composer:v2, flex
+
+            - name: Validate composer.json
+              working-directory: SidusDoctrineFilterBundle
+              run: composer validate --strict
+
+            - name: Install dependencies
+              working-directory: SidusDoctrineFilterBundle
+              run: >
+                  composer update --no-interaction --no-progress
+                  ${{ matrix.dependencies == 'lowest' && '--prefer-lowest --prefer-stable' || '' }}
+
+            - name: Run the test suite
+              working-directory: SidusDoctrineFilterBundle
+              run: vendor/bin/phpunit

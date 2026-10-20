@@ -24,3 +24,4 @@
   paths) and its `EntityType` form mapper; validated at warm-up.
 * Computed sorts (`provider_options.doctrine.expression`, several keys with pinned directions); named joins may be
   chained through shared joins (cycles refused); aggregate sorts and expressions order nulls first / last on PostgreSQL.
+* README, documentation and GitHub Actions CI (PHP 8.4 / 8.5, lowest / highest, PostgreSQL 17 and MariaDB 12.3 services).
