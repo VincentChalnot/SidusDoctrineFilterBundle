@@ -18,3 +18,5 @@
   without an association; opt-in shared collections (`provider_options.doctrine.join: shared`) with a DISTINCT mode.
 * JSON paths (`Field` json path and cast) through `JsonPathCompilerInterface`: PostgreSQL (martin-georgiev),
   MariaDB / MySQL (`SIDUS_JSON`); refused on SQLite.
+* Test suites: DQL determinism (same input, same DQL, one cached parse), worker mode through the registry, and the
+  provider contract on PostgreSQL and MariaDB.
