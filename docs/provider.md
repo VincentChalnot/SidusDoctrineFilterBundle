@@ -121,6 +121,24 @@ $result = $handler
 applied. They get the `QueryBuilder`, the root alias and the `JoinRegistry` (an alias that a customizer already
 used is never reused for a shared join). The builder is never returned outside a customizer.
 
+## Validation at warm-up: `lint:sidus-filter`
+
+Field-dependent checks need the Doctrine metadata, which is a runtime service, so they cannot run at container
+compile time. A non-optional cache warmer (`cache:warmup`, hence deploys and CI, and the first boot of a dev cache)
+and the `bin/console lint:sidus-filter [code]` command validate every `doctrine` list and report **all** problems,
+each naming the list, the filter and the attribute:
+
+* every filter attribute and sort column resolves (unknown segment, scalar in the middle, embeddable as terminal);
+* every criterion a filter can emit is supported on the field's type (text criteria on strings, ranges on numbers
+  and dates, no equality on JSON, `IsNull` on a collection, ...);
+* every sort column is sortable: no to-many path without an `aggregate`, no unknown `provider_options.doctrine` key;
+* the `identifier` option is a scalar field; the entity is managed; filters do not declare conflicting options;
+* the platform can do what the lists need: `Matches` needs PostgreSQL or SQLite with the REGEXP function
+  registered (probed with `SELECT 'a' REGEXP 'a'`), `ilike` needs PostgreSQL.
+
+Platform checks are skipped when the database cannot be reached, so that `cache:warmup` works in a build without
+a database.
+
 ## Platforms
 
 PostgreSQL and SQLite are supported and tested. MySQL / MariaDB are refused: their default collations compare strings

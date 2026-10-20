@@ -10,3 +10,5 @@
   `AnyOf`, `AllOf`, `Native` and `Sort`; strict capability refusals.
 * Sort with identifier tie-breaker, portable null ordering and to-many aggregates (`count`, `min`, `max`).
 * Lazy `COUNT` on a clone without `ORDER BY`; `withCustomizer()` per handler.
+* Cache warmer and `lint:sidus-filter` validating every attribute path, criterion and sort column of every
+  doctrine list against the Doctrine metadata.

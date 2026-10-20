@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Sidus\DoctrineFilterBundle\CacheWarmer\ListWarmer;
+use Sidus\DoctrineFilterBundle\Command\LintCommand;
 use Sidus\DoctrineFilterBundle\Compiler\AllOfCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\AnyOfCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\ContainsCompiler;
@@ -17,6 +19,10 @@ use Sidus\DoctrineFilterBundle\Compiler\RangeCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\SortCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\StartsWithCompiler;
 use Sidus\DoctrineFilterBundle\Factory\DoctrineQueryHandlerFactory;
+use Sidus\DoctrineFilterBundle\Validation\ListValidator;
+use Sidus\FilterBundle\Registry\FilterTypeRegistry;
+use Sidus\FilterBundle\Registry\ListDefinitionRegistry;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
@@ -37,4 +43,21 @@ return static function (ContainerConfigurator $container): void {
         service('doctrine'),
         tagged_iterator('sidus_doctrine_filter.compiler'),
     ]);
+
+    $services->set(ListValidator::class)->args([
+        service(DoctrineQueryHandlerFactory::class),
+        service('doctrine'),
+        service(FilterTypeRegistry::class),
+    ]);
+    $services->set(ListWarmer::class)->public()->args([
+        service(ListDefinitionRegistry::class),
+        service(ListValidator::class),
+    ])->tag('kernel.cache_warmer');
+
+    if (class_exists(Command::class)) {
+        $services->set(LintCommand::class)->args([
+            service(ListDefinitionRegistry::class),
+            service(ListValidator::class),
+        ]);
+    }
 };

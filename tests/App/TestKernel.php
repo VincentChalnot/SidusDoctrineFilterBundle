@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Sidus\DoctrineFilterBundle\Tests\App;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
+use Sidus\DoctrineFilterBundle\CacheWarmer\ListWarmer;
 use Sidus\DoctrineFilterBundle\SidusDoctrineFilterBundle;
 use Sidus\DoctrineFilterBundle\Tests\Support\RecordingLogger;
 use Sidus\DoctrineFilterBundle\Tests\Support\SqliteDriver;
 use Sidus\FilterBundle\SidusFilterBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpKernel\Kernel;
@@ -31,6 +34,7 @@ final class TestKernel extends Kernel
         private readonly string $id = 'default',
         private readonly bool $usePostgres = false,
         private readonly bool $recordQueries = false,
+        private readonly bool $warmer = true,
     ) {
         parent::__construct('test', true);
     }
@@ -38,8 +42,9 @@ final class TestKernel extends Kernel
     /**
      * @param array<string, array<string, mixed>>        $lists
      * @param \Closure(ContainerConfigurator): void|null $services
-     * @param array{id?: string, postgres?: bool, record_queries?: bool} $options `record_queries` logs every SQL
-     *                                                                              statement into {@see RecordingLogger}
+     * @param array{id?: string, postgres?: bool, record_queries?: bool, warmer?: bool} $options `record_queries` logs every
+     *                                                                                          SQL statement into {@see RecordingLogger}; `warmer`
+     *                                                                                          false removes the list warmer (which runs on boot)
      */
     public static function create(array $lists, ?\Closure $services = null, array $options = []): self
     {
@@ -53,7 +58,7 @@ final class TestKernel extends Kernel
             if (null !== $services) {
                 $services($container);
             }
-        }, $options['id'] ?? uniqid('k', true), $options['postgres'] ?? false, $record);
+        }, $options['id'] ?? uniqid('k', true), $options['postgres'] ?? false, $record, $options['warmer'] ?? true);
     }
 
     public function registerBundles(): iterable
@@ -70,6 +75,19 @@ final class TestKernel extends Kernel
             new Filesystem()->remove($this->getCacheDir());
         }
         parent::boot();
+    }
+
+    protected function build(ContainerBuilder $container): void
+    {
+        if ($this->warmer) {
+            return;
+        }
+        $container->addCompilerPass(new class() implements CompilerPassInterface {
+            public function process(ContainerBuilder $container): void
+            {
+                $container->getDefinition(ListWarmer::class)->clearTag('kernel.cache_warmer');
+            }
+        });
     }
 
     public function getProjectDir(): string
