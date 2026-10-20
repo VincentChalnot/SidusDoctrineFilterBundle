@@ -37,8 +37,8 @@ Filter `provider_options.doctrine`:
 |---|---|---|
 | `case_insensitive` | `lower` | How case-insensitive `contains` / `starts_with` / `ends_with` fold: `lower` (`LOWER(column) LIKE`, the needle is folded by PHP) or `ilike` (PostgreSQL `ILIKE`, can use a trigram index). |
 
-A criterion carries a field, not the filter that emitted it, so two filters of one list that name the same attribute
-must declare the same `provider_options.doctrine` (otherwise the handler refuses to be created).
+The options travel on the criteria the filter emits, so two filters on one field may differ (a case-insensitive
+`ilike` search and an exact one on `title`).
 
 Sort column `provider_options.doctrine`: `aggregate: count|min|max` (see below).
 
@@ -84,7 +84,7 @@ filters:
 |---|---|---|
 | `multiple` | `false` | accept a list of ids (`In`), otherwise one (`Equals`) |
 | `identifier` | `id` | identifier field of the related entity |
-| `class` | none | the related entity: read by the form mapper, checked against the metadata at warm-up |
+| `class` | derived | the related entity for the form field, derived from the association on a `doctrine` list; if given, checked against the metadata at warm-up |
 
 A to-one association compiles to a comparison of the foreign key (`root.forum = :p1`, no join; `topic.forum` joins
 `topic` only); a to-many one to an `EXISTS` ("any related element has one of the ids"). Equality on an
@@ -93,9 +93,9 @@ association *end* (`forum`) is refused by the compilers, which is why a plain `c
 
 **Form** (when `symfony/form` and `symfony/doctrine-bridge` are installed): the `relation` mapper adds an
 `EntityType` on `class`; `form.options` goes through (`choice_label`, `query_builder` to narrow the choices, ...).
-The submitted ids are the raw input of the filter; a default becomes entity references for the field. The core's
-`FormFilterMapperInterface::add()` receives the filter but not the list, so the class cannot be derived from the
-list's entity: it is declared, and validated at warm-up against the association it must lead to.
+The submitted ids are the raw input of the filter; a default becomes entity references for the field. `class` is optional on a
+`doctrine` list: the mapper derives it from the association the attribute leads to. Declare it to override (or for other
+providers); when declared it is validated at warm-up against that association.
 
 ## Named joins (entities without an association)
 
@@ -137,8 +137,7 @@ By default two criteria on one collection are independent ("some tag is php *and
 "the *same* element satisfies both", opt in, which joins the collection once (`LEFT JOIN root.tags tags_`) and shares
 the alias:
 
-* a filter with `provider_options: { doctrine: { join: shared } }` (every filter naming the same attribute must say
-  so), or
+* a filter with `provider_options: { doctrine: { join: shared } }` , or
 * a named join with `cardinality: many` and `shared: true`.
 
 A query that joins a collection can return a root several times, so the list switches to its DISTINCT mode:
@@ -249,7 +248,7 @@ each naming the list, the filter and the attribute:
 * every criterion a filter can emit is supported on the field's type (text criteria on strings, ranges on numbers
   and dates, no equality on JSON, `IsNull` on a collection, ...);
 * every sort column is sortable: no to-many path without an `aggregate`, no unknown `provider_options.doctrine` key;
-* the `identifier` option is a scalar field; the entity is managed; filters do not declare conflicting options;
+* the `identifier` option is a scalar field; the entity is managed; 
 * the platform can do what the lists need: `Matches` needs PostgreSQL or SQLite with the REGEXP function
   registered (probed with `SELECT 'a' REGEXP 'a'`), `ilike` needs PostgreSQL.
 

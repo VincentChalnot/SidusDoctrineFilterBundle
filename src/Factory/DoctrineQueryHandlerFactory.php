@@ -17,7 +17,7 @@ use Sidus\DoctrineFilterBundle\Platform\Dialect;
 use Sidus\DoctrineFilterBundle\Query\DoctrineQueryHandler;
 use Sidus\DoctrineFilterBundle\Query\JsonPathCompilerInterface;
 use Sidus\DoctrineFilterBundle\Query\JsonSupport;
-use Sidus\FilterBundle\Definition\Field;
+use Sidus\FilterBundle\Definition\FilterDefinition;
 use Sidus\FilterBundle\Definition\ListDefinition;
 use Sidus\FilterBundle\Exception\ConfigurationException;
 use Sidus\FilterBundle\Provider\CountStrategyInterface;
@@ -99,7 +99,7 @@ final class DoctrineQueryHandlerFactory implements QueryHandlerFactoryInterface
         $dialect = Dialect::of($manager->getConnection()->getDatabasePlatform());
         $json = $this->prepare($manager, $dialect);
         $mapping = $this->mapping($definition);
-        if (!$dialect->isPostgreSql() && \in_array('ilike', array_column($mapping->fieldOptions, 'case_insensitive'), true)) {
+        if (!$dialect->isPostgreSql() && array_any($definition->filters, static fn (FilterDefinition $filter): bool => 'ilike' === ($filter->getProviderOptions(self::PROVIDER)['case_insensitive'] ?? null))) {
             throw new ConfigurationException(\sprintf('List "%s": case_insensitive "ilike" is available on PostgreSQL only, the connection is %s.', $definition->code, $dialect->name()));
         }
 
@@ -153,37 +153,9 @@ final class DoctrineQueryHandlerFactory implements QueryHandlerFactoryInterface
                 $definition->options['identifier'] ?? $resolver->identifier(),
                 $resolver,
                 $definition->options['binary_sort'] ?? false,
-                self::fieldOptions($definition),
             );
         }
 
         return $this->mappings[$definition];
-    }
-
-    /**
-     * The `provider_options.doctrine` of the filters, by attribute. A criterion carries a field, not the filter
-     * that emitted it, so two filters declaring different options for one field are ambiguous: refused.
-     *
-     * @return array<string, array<string, mixed>>
-     */
-    private static function fieldOptions(ListDefinition $definition): array
-    {
-        $options = [];
-        foreach ($definition->filters as $filter) {
-            $filterOptions = $filter->getProviderOptions(self::PROVIDER);
-            if ([] === $filterOptions) {
-                continue;
-            }
-            foreach ($filter->attributes as $field) {
-                \assert($field instanceof Field);
-                $key = (string) $field;
-                if (isset($options[$key]) && $options[$key] !== $filterOptions) {
-                    throw new ConfigurationException(\sprintf('List "%s": several filters declare different provider_options.doctrine for the field "%s".', $definition->code, $key));
-                }
-                $options[$key] = $filterOptions;
-            }
-        }
-
-        return $options;
     }
 }

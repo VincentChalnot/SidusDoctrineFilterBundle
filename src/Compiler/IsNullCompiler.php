@@ -25,6 +25,6 @@ final class IsNullCompiler extends AbstractDoctrineCompiler
         \assert($criterion instanceof IsNull);
         $field = $this->resolve($criterion, $context)->asForeignKey();
 
-        return FieldAccess::matching($context, $field, static fn (string $column): DqlExpression => DqlExpression::safe($column.' IS NULL'), true);
+        return FieldAccess::matching($context, $field, static fn (string $column): DqlExpression => DqlExpression::safe($column.' IS NULL'), true, $context->option($criterion, 'join', 'exists'));
     }
 }

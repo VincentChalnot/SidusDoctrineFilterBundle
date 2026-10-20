@@ -25,8 +25,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * Options:
  *  - `multiple` (default false): accept a list of ids (a scalar is still accepted);
  *  - `identifier` (default `id`): the identifier field of the related entity;
- *  - `class`: the related entity, only read by the form mapper (EntityType needs it) and checked against the
- *    metadata at warm-up.
+ *  - `class`: the related entity, only read by the form mapper; derived from the association on a `doctrine` list,
+ *    checked against the metadata at warm-up when given.
  */
 final class RelationFilterType extends AbstractFilterType
 {
@@ -96,7 +96,7 @@ final class RelationFilterType extends AbstractFilterType
     public function buildCriterion(FilterDefinition $filter, mixed $value): ?Criterion
     {
         return $this->forAttributes($filter, static fn (Field $attribute): Criterion => \is_array($value)
-            ? new In(self::fieldOf($filter, $attribute), $value)
-            : new Equals(self::fieldOf($filter, $attribute), $value));
+            ? new In(self::fieldOf($filter, $attribute), $value, $filter->providerOptions)
+            : new Equals(self::fieldOf($filter, $attribute), $value, $filter->providerOptions));
     }
 }

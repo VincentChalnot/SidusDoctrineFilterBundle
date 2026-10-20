@@ -32,6 +32,6 @@ final class RangeCompiler extends AbstractDoctrineCompiler
             }
 
             return DqlExpression::nullable(1 === \count($conditions) ? $conditions[0] : '('.implode(' AND ', $conditions).')');
-        });
+        }, false, $context->option($criterion, 'join', 'exists'));
     }
 }

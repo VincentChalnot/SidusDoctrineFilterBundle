@@ -30,6 +30,6 @@ final class MatchesCompiler extends AbstractDoctrineCompiler
 
         return FieldAccess::matching($context, $field, static fn (string $column): DqlExpression => DqlExpression::safe(
             $function.'('.$column.', '.$context->parameter($criterion->pattern).') = 1',
-        ));
+        ), false, $context->option($criterion, 'join', 'exists'));
     }
 }

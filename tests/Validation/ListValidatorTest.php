@@ -100,17 +100,6 @@ final class ListValidatorTest extends DoctrineTestCase
         self::assertSame(['List "probe": stdClass is not managed by a Doctrine ORM entity manager.'], $errors);
     }
 
-    public function testConflictingProviderOptionsOnOneFieldAreReported(): void
-    {
-        $errors = $this->errors([
-            'a' => ['type' => 'text', 'attributes' => ['title'], 'provider_options' => ['doctrine' => ['case_insensitive' => 'ilike']]],
-            'b' => ['type' => 'text', 'attributes' => ['title'], 'provider_options' => ['doctrine' => ['case_insensitive' => 'lower']]],
-        ]);
-
-        self::assertCount(1, $errors);
-        self::assertStringContainsString('several filters declare different provider_options.doctrine for the field "title"', $errors[0]);
-    }
-
     public function testILikeIsRefusedOnSqlite(): void
     {
         $errors = $this->errors(['t' => ['type' => 'text', 'attributes' => ['title'], 'provider_options' => ['doctrine' => ['case_insensitive' => 'ilike']]]]);

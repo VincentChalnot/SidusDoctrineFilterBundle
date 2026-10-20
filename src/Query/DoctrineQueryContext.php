@@ -8,12 +8,13 @@ use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
 use Sidus\DoctrineFilterBundle\Dql\DqlFunctions;
+use Sidus\DoctrineFilterBundle\Factory\DoctrineQueryHandlerFactory;
 use Sidus\DoctrineFilterBundle\Metadata\FieldCapabilities;
 use Sidus\DoctrineFilterBundle\Metadata\ListMapping;
 use Sidus\DoctrineFilterBundle\Metadata\ResolvedField;
 use Sidus\DoctrineFilterBundle\Metadata\ResolvedStep;
 use Sidus\DoctrineFilterBundle\Platform\Dialect;
-use Sidus\FilterBundle\Definition\Field;
+use Sidus\FilterBundle\Criterion\FieldCriterion;
 use Sidus\FilterBundle\Provider\QueryContextInterface;
 
 /**
@@ -91,13 +92,20 @@ final class DoctrineQueryContext implements QueryContextInterface
     }
 
     /**
-     * Whether the field opts in to joining its collections instead of one EXISTS per criterion: a filter with
-     * `provider_options.doctrine.join: shared`, or a path through a named join with `shared: true`.
+     * Whether a path through collections is joined instead of one EXISTS per criterion: the criterion's filter has
+     * `provider_options.doctrine.join: shared` (`$join`), or the path goes through a named join with `shared: true`.
      */
-    public function isShared(ResolvedField $field): bool
+    public function isShared(ResolvedField $field, string $join = 'exists'): bool
     {
-        return 'shared' === $this->fieldOption($field->field, 'join', 'exists')
-            || array_any($field->steps, static fn (ResolvedStep $step): bool => $step->isSharedJoin());
+        return 'shared' === $join || array_any($field->steps, static fn (ResolvedStep $step): bool => $step->isSharedJoin());
+    }
+
+    /**
+     * A `provider_options.doctrine` option of the filter that emitted the criterion (`case_insensitive`, `join`).
+     */
+    public function option(FieldCriterion $criterion, string $option, mixed $default): mixed
+    {
+        return $criterion->providerOptions[DoctrineQueryHandlerFactory::PROVIDER][$option] ?? $default;
     }
 
     /**
@@ -125,13 +133,5 @@ final class DoctrineQueryContext implements QueryContextInterface
         return $this->dialect->isMySqlFamily() && \in_array($field->valueType(), FieldCapabilities::TEXT_TYPES, true)
             ? DqlFunctions::BINARY.'('.$column.')'
             : $column;
-    }
-
-    /**
-     * A provider option of the filter(s) declaring this field as attribute, e.g. `case_insensitive`.
-     */
-    public function fieldOption(Field $field, string $option, mixed $default): mixed
-    {
-        return $this->mapping->fieldOptions[(string) $field][$option] ?? $default;
     }
 }

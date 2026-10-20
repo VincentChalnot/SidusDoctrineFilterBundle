@@ -159,17 +159,19 @@ final class SemanticsTest extends DoctrineTestCase
         self::factory()->createQueryHandler($list, FilterTypeRegistry::builtIn(), null);
     }
 
-    public function testTwoFiltersCannotDeclareDifferentOptionsForOneField(): void
+    public function testTwoFiltersOnOneFieldMayDeclareDifferentOptions(): void
     {
+        // On SQLite `ilike` is refused at creation, so compare `lower` with the default: the option travels on the criterion.
         $list = self::list([
-            'a' => ['type' => 'text', 'attributes' => ['title'], 'provider_options' => ['doctrine' => ['case_insensitive' => 'ilike']]],
-            'b' => ['type' => 'text', 'attributes' => ['title'], 'provider_options' => ['doctrine' => ['case_insensitive' => 'lower']]],
+            'a' => ['type' => 'text', 'attributes' => ['tags.label'], 'provider_options' => ['doctrine' => ['join' => 'shared']]],
+            'b' => ['type' => 'text', 'attributes' => ['tags.label']],
         ]);
 
-        $this->expectException(\Sidus\FilterBundle\Exception\ConfigurationException::class);
-        $this->expectExceptionMessage('several filters declare different provider_options.doctrine for the field "title"');
+        $probe = self::execute($list, ['filters' => ['a' => 'php', 'b' => 'symfony']]);
 
-        self::factory()->createQueryHandler($list, FilterTypeRegistry::builtIn(), null);
+        self::assertSame(1, substr_count($probe->dql(), 'LEFT JOIN root.tags tags_'), 'a is joined');
+        self::assertSame(1, substr_count($probe->dql(), 'EXISTS ('), 'b is its own EXISTS: '.$probe->dql());
+        self::assertSame([1], $probe->ids(), 'a tag is php (joined), some tag is symfony (EXISTS)');
     }
 
     public function testTheEntityMustBeManaged(): void

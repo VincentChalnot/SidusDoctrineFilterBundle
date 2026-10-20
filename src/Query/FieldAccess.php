@@ -24,13 +24,14 @@ final class FieldAccess
 {
     /**
      * @param \Closure(string): DqlExpression $predicate receives the column expression
+     * @param string                          $join `shared` (provider option of the emitting filter): join the collections instead of correlating an EXISTS
      * @param bool                            $emptyListMatches whether an empty fan-out also satisfies the predicate (is null / is empty on a path through a collection: "no element" counts as empty)
      */
-    public static function matching(DoctrineQueryContext $context, ResolvedField $field, \Closure $predicate, bool $emptyListMatches = false): DqlExpression
+    public static function matching(DoctrineQueryContext $context, ResolvedField $field, \Closure $predicate, bool $emptyListMatches = false, string $join = 'exists'): DqlExpression
     {
         $field = $field->collapseIdentifier();
         $first = $field->firstToMany();
-        $shared = null !== $first && $context->isShared($field);
+        $shared = null !== $first && $context->isShared($field, $join);
         if (null === $first || $shared) {
             $alias = $context->joins()->alias($field, \count($field->steps), $shared);
 

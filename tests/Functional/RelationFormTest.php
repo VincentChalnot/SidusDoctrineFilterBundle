@@ -30,8 +30,8 @@ final class RelationFormTest extends TestCase
             'options' => ['entity' => Post::class],
             'pagination' => ['per_page' => 10, 'max_per_page' => 10],
             'filters' => [
-                'author' => ['type' => 'relation', 'options' => ['class' => Author::class], 'form' => ['label' => 'Written by', 'options' => ['choice_label' => 'name']]],
-                'tags' => ['type' => 'relation', 'options' => ['multiple' => true, 'class' => Tag::class], 'form' => ['options' => ['choice_label' => 'label']]],
+                'author' => ['type' => 'relation', 'form' => ['label' => 'Written by', 'options' => ['choice_label' => 'name']]],
+                'tags' => ['type' => 'relation', 'options' => ['multiple' => true], 'form' => ['options' => ['choice_label' => 'label']]],
                 'sort' => ['type' => 'sort', 'options' => ['columns' => ['id' => 'id'], 'default' => [['column' => 'id', 'direction' => 'asc']]]],
             ],
         ]]);
@@ -108,8 +108,8 @@ final class RelationFormTest extends TestCase
             'provider' => 'doctrine',
             'options' => ['entity' => Post::class],
             'filters' => [
-                'author' => ['type' => 'relation', 'default' => '3', 'options' => ['class' => Author::class]],
-                'tags' => ['type' => 'relation', 'default' => ['1', '2'], 'options' => ['multiple' => true, 'class' => Tag::class]],
+                'author' => ['type' => 'relation', 'default' => '3'],
+                'tags' => ['type' => 'relation', 'default' => ['1', '2'], 'options' => ['multiple' => true]],
             ],
         ]]);
         $kernel->boot();
@@ -130,21 +130,20 @@ final class RelationFormTest extends TestCase
         }
     }
 
-    public function testTheFormFieldNeedsTheClass(): void
+    public function testTheDeclaredClassOverridesTheDerivedOne(): void
     {
         $kernel = TestKernel::create(['posts' => [
             'provider' => 'doctrine',
             'options' => ['entity' => Post::class],
-            'filters' => ['author' => ['type' => 'relation']],
+            'filters' => ['author' => ['type' => 'relation', 'options' => ['class' => Author::class]]],
         ]]);
         $kernel->boot();
 
         try {
             $factory = $kernel->getContainer()->get('test.service_container')->get(ListFormFactory::class);
-            $this->expectException(\LogicException::class);
-            $this->expectExceptionMessage('Relation filter "author": the form field needs the related entity, set the filter option "class".');
+            $form = $factory->create($kernel->getContainer()->get(QueryHandlerRegistry::class)->getDefinition('posts'));
 
-            $factory->create($kernel->getContainer()->get(QueryHandlerRegistry::class)->getDefinition('posts'));
+            self::assertSame(Author::class, $form->get('filters')->get('author')->getConfig()->getOption('class'));
         } finally {
             $kernel->shutdown();
         }

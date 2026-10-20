@@ -39,7 +39,7 @@ abstract class AbstractTextCompiler extends AbstractDoctrineCompiler
             if ($criterion->caseSensitive) {
                 return DqlExpression::nullable($this->exact($context, $context->exact($field, $column), $criterion->text));
             }
-            if ('ilike' === $context->fieldOption($criterion->field, 'case_insensitive', 'lower')) {
+            if ('ilike' === $context->option($criterion, 'case_insensitive', 'lower')) {
                 $pattern = $context->parameter($this->pattern(self::escape($criterion->text)));
 
                 return DqlExpression::safe(DqlFunctions::ILIKE.'('.$column.', '.$pattern.') = 1');
@@ -48,7 +48,7 @@ abstract class AbstractTextCompiler extends AbstractDoctrineCompiler
 
             // MySQL and MariaDB: LOWER() folds Unicode, BINARY then compares exactly (no accent folding, no padding).
             return DqlExpression::nullable($context->exact($field, 'LOWER('.$column.')').' LIKE '.$pattern." ESCAPE '!'");
-        });
+        }, false, $context->option($criterion, 'join', 'exists'));
     }
 
     public static function escape(string $text): string

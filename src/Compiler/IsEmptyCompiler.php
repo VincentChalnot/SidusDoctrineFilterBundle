@@ -36,6 +36,7 @@ final class IsEmptyCompiler extends AbstractDoctrineCompiler
             $field,
             static fn (string $column): DqlExpression => DqlExpression::safe($text ? '('.$column.' IS NULL OR LENGTH('.$column.') = 0)' : $column.' IS NULL'),
             true,
+            $context->option($criterion, 'join', 'exists'),
         );
     }
 }

@@ -47,7 +47,7 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(RelationFilterType::class);
     if (interface_exists(FormFilterMapperInterface::class) && class_exists(EntityType::class)) {
-        $services->set(RelationMapper::class)->args([service('doctrine')]);
+        $services->set(RelationMapper::class)->args([service('doctrine'), service(DoctrineQueryHandlerFactory::class)]);
     }
 
     $services->set(PostgreSqlJsonPathCompiler::class);
