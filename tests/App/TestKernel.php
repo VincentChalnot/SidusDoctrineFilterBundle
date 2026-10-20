@@ -107,7 +107,7 @@ final class TestKernel extends Kernel
 
     protected function configureContainer(ContainerConfigurator $container): void
     {
-        $container->extension('framework', ['test' => true, 'secret' => 'test', 'http_method_override' => false]);
+        $container->extension('framework', ['test' => true, 'secret' => 'test', 'http_method_override' => false, 'form' => ['enabled' => true, 'csrf_protection' => ['enabled' => false]], 'csrf_protection' => false]);
         $connection = match ($this->platform) {
             'pgsql' => ['url' => (string) getenv('SIDUS_FILTER_PG_DSN')],
             'mysql' => ['url' => (string) getenv('SIDUS_FILTER_MYSQL_DSN')],

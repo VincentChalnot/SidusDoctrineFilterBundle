@@ -11,9 +11,13 @@ use Sidus\DoctrineFilterBundle\Query\DoctrineQueryContext;
 use Sidus\DoctrineFilterBundle\Query\DoctrineQueryHandler;
 use Sidus\DoctrineFilterBundle\Tests\App\TestKernel;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Post;
+use Psr\Container\ContainerInterface;
+use Sidus\DoctrineFilterBundle\Filter\RelationFilterType;
 use Sidus\FilterBundle\Definition\FilterDefinition;
 use Sidus\FilterBundle\Definition\ListDefinition;
 use Sidus\FilterBundle\Input\ListInput;
+use Sidus\FilterBundle\Filter\Type\BuiltInFilterTypes;
+use Sidus\FilterBundle\Filter\Type\NativeFilterType;
 use Sidus\FilterBundle\Registry\FilterTypeRegistry;
 use Sidus\FilterBundle\Result\ListResult;
 use Sidus\FilterBundle\Test\Contract\FixtureDataset;
@@ -81,6 +85,19 @@ abstract class DoctrineTestCase extends TestCase
         return $em;
     }
 
+    /**
+     * The core's filter types plus the provider's `relation` type.
+     */
+    protected static function registry(?ContainerInterface $nativeBuilders = null): FilterTypeRegistry
+    {
+        $types = [];
+        foreach (BuiltInFilterTypes::classes() as $class) {
+            $types[] = NativeFilterType::class === $class ? new NativeFilterType($nativeBuilders) : new $class();
+        }
+
+        return new FilterTypeRegistry([...$types, new RelationFilterType()]);
+    }
+
     protected static function factory(): DoctrineQueryHandlerFactory
     {
         $factory = self::$kernel?->getContainer()->get('test.service_container')->get(DoctrineQueryHandlerFactory::class);
@@ -98,7 +115,7 @@ abstract class DoctrineTestCase extends TestCase
     protected static function list(array $specs, array $options = [], string $code = 'probe', string $count = ListDefinition::COUNT_AUTO, ?FilterTypeRegistry $types = null): ListDefinition
     {
         $available = FixtureDataset::filterSpecs();
-        $types ??= FilterTypeRegistry::builtIn();
+        $types ??= self::registry();
         $filters = [];
         foreach ($specs as $key => $spec) {
             if (\is_int($key)) {
@@ -130,7 +147,7 @@ abstract class DoctrineTestCase extends TestCase
     protected static function execute(ListDefinition $list, array $input = [], ?\Closure $customizer = null, bool $readTotal = false, ?FilterTypeRegistry $types = null): Probe
     {
         $captured = null;
-        $handler = self::factory()->createQueryHandler($list, $types ?? FilterTypeRegistry::builtIn(), null);
+        $handler = self::factory()->createQueryHandler($list, $types ?? self::registry(), null);
         \assert($handler instanceof DoctrineQueryHandler);
         $handler = $handler->withCustomizer(static function (DoctrineQueryContext $context) use (&$captured, $customizer): void {
             $captured = $context;

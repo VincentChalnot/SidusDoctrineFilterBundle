@@ -28,6 +28,7 @@ final class FieldAccess
      */
     public static function matching(DoctrineQueryContext $context, ResolvedField $field, \Closure $predicate, bool $emptyListMatches = false): DqlExpression
     {
+        $field = $field->collapseIdentifier();
         $first = $field->firstToMany();
         $shared = null !== $first && $context->isShared($field);
         if (null === $first || $shared) {

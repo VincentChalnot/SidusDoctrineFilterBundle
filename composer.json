@@ -61,13 +61,16 @@
         "martin-georgiev/postgresql-for-doctrine": "^4.9",
         "phpunit/phpunit": "^12.0",
         "symfony/console": "^8.1",
+        "symfony/doctrine-bridge": "^8.1",
         "symfony/filesystem": "^8.1",
+        "symfony/form": "^8.1",
         "symfony/framework-bundle": "^8.1",
         "symfony/yaml": "^8.1"
     },
     "suggest": {
         "martin-georgiev/postgresql-for-doctrine": "JSON path filtering and sorting on PostgreSQL (json/jsonb columns)",
         "symfony/console": "Enables the lint:sidus-filter command",
+        "symfony/doctrine-bridge": "EntityType, for the form mapper of the relation filter",
         "symfony/form": "Form adapter of sidus/filter-bundle (relation filter mapper)"
     },
     "config": {

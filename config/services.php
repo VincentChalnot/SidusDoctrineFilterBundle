@@ -19,11 +19,15 @@ use Sidus\DoctrineFilterBundle\Compiler\RangeCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\SortCompiler;
 use Sidus\DoctrineFilterBundle\Compiler\StartsWithCompiler;
 use Sidus\DoctrineFilterBundle\Factory\DoctrineQueryHandlerFactory;
+use Sidus\DoctrineFilterBundle\Filter\RelationFilterType;
+use Sidus\DoctrineFilterBundle\Form\RelationMapper;
 use Sidus\DoctrineFilterBundle\Json\MySqlJsonPathCompiler;
 use Sidus\DoctrineFilterBundle\Json\PostgreSqlJsonPathCompiler;
 use Sidus\DoctrineFilterBundle\Validation\ListValidator;
 use Sidus\FilterBundle\Registry\FilterTypeRegistry;
 use Sidus\FilterBundle\Registry\ListDefinitionRegistry;
+use Sidus\FilterBundle\Form\FormFilterMapperInterface;
+use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
@@ -39,6 +43,11 @@ return static function (ContainerConfigurator $container): void {
         AnyOfCompiler::class, AllOfCompiler::class, NativeCompiler::class, SortCompiler::class,
     ] as $compiler) {
         $services->set($compiler);
+    }
+
+    $services->set(RelationFilterType::class);
+    if (interface_exists(FormFilterMapperInterface::class) && class_exists(EntityType::class)) {
+        $services->set(RelationMapper::class)->args([service('doctrine')]);
     }
 
     $services->set(PostgreSqlJsonPathCompiler::class);

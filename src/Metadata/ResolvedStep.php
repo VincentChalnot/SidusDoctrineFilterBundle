@@ -15,6 +15,7 @@ final readonly class ResolvedStep
      * @param string|null  $mappedBy         the field of `$target` pointing back, for a collection mapped by a foreign key on the target
      * @param bool         $joinColumnOnRow  a to-one whose foreign key lives on the source row (`IS NULL` needs no join)
      * @param string|null  $targetIdentifier single identifier field of the target, null when composite
+     * @param string|null  $targetIdentifierType DBAL type of that identifier
      * @param NamedJoin|null $join           set when the step is a named join (always the first step of a path)
      */
     public function __construct(
@@ -26,6 +27,7 @@ final readonly class ResolvedStep
         public bool $joinColumnOnRow = false,
         public ?string $targetIdentifier = null,
         public ?NamedJoin $join = null,
+        public ?string $targetIdentifierType = null,
     ) {
     }
 

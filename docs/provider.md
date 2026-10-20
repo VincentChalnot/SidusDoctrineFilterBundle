@@ -69,6 +69,34 @@ from the list configuration only: no request input is ever resolved as a path.
   the active filters. The DQL only varies with *which* filters are active (a finite set of shapes), so Doctrine's
   query cache hits. No `uniqid()` anywhere.
 
+## The `relation` filter type
+
+`type: relation` (v6 `entity`) filters on the identifier(s) of the entity at the end of an association path. The
+attributes name the associations; the criterion compares their identifier, so there is nothing to append:
+
+```yaml
+filters:
+    forum:  { type: relation, attributes: [topic.forum], options: { class: App\Entity\Forum } }
+    tags:   { type: relation, options: { multiple: true, class: App\Entity\Tag } }
+```
+
+| Option | Default | |
+|---|---|---|
+| `multiple` | `false` | accept a list of ids (`In`), otherwise one (`Equals`) |
+| `identifier` | `id` | identifier field of the related entity |
+| `class` | none | the related entity: read by the form mapper, checked against the metadata at warm-up |
+
+A to-one association compiles to a comparison of the foreign key (`root.forum = :p1`, no join; `topic.forum` joins
+`topic` only); a to-many one to an `EXISTS` ("any related element has one of the ids"). Equality on an
+association *end* (`forum`) is refused by the compilers, which is why a plain `choice` / `exact` filter must name
+`forum.id`: use `relation`.
+
+**Form** (when `symfony/form` and `symfony/doctrine-bridge` are installed): the `relation` mapper adds an
+`EntityType` on `class`; `form.options` goes through (`choice_label`, `query_builder` to narrow the choices, ...).
+The submitted ids are the raw input of the filter; a default becomes entity references for the field. The core's
+`FormFilterMapperInterface::add()` receives the filter but not the list, so the class cannot be derived from the
+list's entity: it is declared, and validated at warm-up against the association it must lead to.
+
 ## Named joins (entities without an association)
 
 `options.joins` joins an entity that has no Doctrine association to the root (what the qk-sds-api handler did with

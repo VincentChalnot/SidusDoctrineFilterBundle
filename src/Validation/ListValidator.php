@@ -7,6 +7,7 @@ namespace Sidus\DoctrineFilterBundle\Validation;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Sidus\DoctrineFilterBundle\Factory\DoctrineQueryHandlerFactory;
+use Sidus\DoctrineFilterBundle\Filter\RelationFilterType;
 use Sidus\DoctrineFilterBundle\Metadata\FieldCapabilities;
 use Sidus\DoctrineFilterBundle\Metadata\ListMapping;
 use Sidus\DoctrineFilterBundle\Metadata\ResolvedField;
@@ -88,7 +89,8 @@ final class ListValidator
     private function validateFilter(ListDefinition $list, FilterDefinition $filter, ListMapping $mapping, PlatformProbe $platform): array
     {
         $where = \sprintf('List "%s", filter "%s" (type "%s")', $list->code, $filter->key, $filter->type);
-        $operations = $this->filterTypes->get($filter->type)->getRequiredOperations($filter);
+        $type = $this->filterTypes->get($filter->type);
+        $operations = $type::getRequiredOperations($filter);
         $errors = [];
 
         if (\in_array(Sort::class, $operations, true)) {
@@ -99,9 +101,22 @@ final class ListValidator
 
         // Attributes only matter to filters that emit field criteria (a sort or native filter keeps its key as a dummy attribute).
         $fieldOperations = array_values(array_filter($operations, static fn (string $class): bool => is_subclass_of($class, FieldCriterion::class)));
-        foreach ([] === $fieldOperations ? [] : $filter->attributes as $field) {
-            $resolved = $this->resolve($where.\sprintf(', attribute "%s"', $field), $field, $mapping, $errors);
+        foreach ([] === $fieldOperations ? [] : $filter->attributes as $attribute) {
+            $field = $attribute;
+            if ($type instanceof RelationFilterType) {
+                try {
+                    $field = RelationFilterType::fieldOf($filter, $attribute); // `forum` is compared as `forum.id`
+                } catch (\LogicException $e) {
+                    $errors[] = $where.': '.$e->getMessage();
+                    continue;
+                }
+            }
+            $resolved = $this->resolve($where.\sprintf(', attribute "%s"', $attribute), $field, $mapping, $errors);
             if (null === $resolved) {
+                continue;
+            }
+            if ($type instanceof RelationFilterType && null !== ($reason = $this->relationRefusal($filter, $attribute, $resolved))) {
+                $errors[] = \sprintf('%s, attribute "%s": %s', $where, $attribute, $reason);
                 continue;
             }
             $errors = [...$errors, ...$this->validateJson($where.\sprintf(', attribute "%s"', $field), $resolved, $platform)];
@@ -123,6 +138,24 @@ final class ListValidator
         }
 
         return $errors;
+    }
+
+    /**
+     * A relation attribute must end on an association whose target is the declared `class`, and the identifier
+     * option must be the (single) identifier of that target.
+     */
+    private function relationRefusal(FilterDefinition $filter, Field $attribute, ResolvedField $identifier): ?string
+    {
+        $last = [] === $identifier->steps ? null : $identifier->steps[\array_key_last($identifier->steps)];
+        if (null === $last || $identifier->leaf !== $last->targetIdentifier) {
+            return \sprintf('a relation filter compares the identifier of the entity at the end of an association, "%s" is not one (option identifier: "%s").', $attribute, $filter->options['identifier']);
+        }
+        $class = $filter->options['class'] ?? null;
+        if (null !== $class && ltrim($class, '\\') !== $last->target) {
+            return \sprintf('the option class is %s but the association "%s" leads to %s.', $class, $attribute, $last->target);
+        }
+
+        return null;
     }
 
     /**

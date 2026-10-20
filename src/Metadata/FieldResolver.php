@@ -110,7 +110,7 @@ final class FieldResolver
                 $join = $this->joins[$segment];
                 $target = $this->metadata($join->entity);
                 $identifiers = $target->getIdentifierFieldNames();
-                $steps[] = new ResolvedStep($segment, $this->rootEntity, $target->getName(), $join->isMany(), null, false, 1 === \count($identifiers) ? $identifiers[0] : null, $join);
+                $steps[] = new ResolvedStep($segment, $this->rootEntity, $target->getName(), $join->isMany(), null, false, 1 === \count($identifiers) ? $identifiers[0] : null, $join, 1 === \count($identifiers) ? $target->getTypeOfField($identifiers[0]) : null);
                 if (0 === $last) {
                     return $this->finish(new ResolvedField($field, $this->rootEntity, $steps, null, null));
                 }
@@ -129,6 +129,7 @@ final class FieldResolver
                     mappedBy: $mapping->isOneToMany() && $mapping instanceof InverseSideMapping ? $mapping->mappedBy : null,
                     joinColumnOnRow: $mapping->isToOneOwningSide(),
                     targetIdentifier: 1 === \count($identifiers) ? $identifiers[0] : null,
+                    targetIdentifierType: 1 === \count($identifiers) ? $target->getTypeOfField($identifiers[0]) : null,
                 );
                 $steps[] = $step;
                 if ($index === $last) {

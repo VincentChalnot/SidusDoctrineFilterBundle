@@ -77,6 +77,23 @@ final readonly class ResolvedField
     }
 
     /**
+     * `forum.id` through an owning to-one association is the foreign key of the row: `root.forum`, no join needed.
+     * Returns that shorter field, or this one when the path is not of that shape.
+     */
+    public function collapseIdentifier(): self
+    {
+        if (null === $this->leaf || $this->isJson() || [] === $this->steps) {
+            return $this;
+        }
+        $last = $this->steps[\array_key_last($this->steps)];
+        if ($last->toMany || !$last->joinColumnOnRow || null !== $last->join || $last->targetIdentifier !== $this->leaf) {
+            return $this;
+        }
+
+        return new self($this->field, $this->rootEntity, \array_slice($this->steps, 0, -1), $last->name, $last->targetIdentifierType, true, $last->source);
+    }
+
+    /**
      * The nullable column that stands for an association in a null / emptiness test or a join condition: its
      * foreign key when it lives on the row (no join needed), the identifier of the joined target otherwise.
      */

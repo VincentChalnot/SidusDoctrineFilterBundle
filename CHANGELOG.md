@@ -20,3 +20,5 @@
   MariaDB / MySQL (`SIDUS_JSON`); refused on SQLite.
 * Test suites: DQL determinism (same input, same DQL, one cached parse), worker mode through the registry, and the
   provider contract on PostgreSQL and MariaDB.
+* `relation` filter type (`Equals` / `In` on the identifier of an association, foreign key without join for to-one
+  paths) and its `EntityType` form mapper; validated at warm-up.
