@@ -141,13 +141,42 @@ a database.
 
 ## Platforms
 
-PostgreSQL and SQLite are supported and tested. MySQL / MariaDB are refused: their default collations compare strings
-case-insensitively, so `Equals` would silently diverge from the reference.
+PostgreSQL, SQLite and MariaDB are tested by the shared contract suite (`knownDivergences` only for SQLite's
+ASCII-only `LOWER()`); MySQL 8 shares the MariaDB code path except `REGEXP`, and is not tested. Other platforms are
+refused when a handler is created.
+
+| | PostgreSQL | SQLite | MariaDB / MySQL |
+|---|---|---|---|
+| string `=`, `IN` | exact | exact | `(BINARY col) = :p`: the default collation (`utf8mb4_uca1400_ai_ci`, `utf8mb4_general_ci`) is case- and accent-insensitive and pads with spaces |
+| `contains` etc., case-sensitive | `LOCATE` / `SUBSTRING` | same | same, on `BINARY col` (bytes: `LENGTH` counts bytes on both sides) |
+| `contains` etc., case-insensitive | `LOWER(col) LIKE` or `ILIKE` | `LOWER(col) LIKE` (ASCII folding only) | `(BINARY LOWER(col)) LIKE` (Unicode `LOWER`, exact comparison: `ecole` does not match `ÉCOLE`) |
+| `Matches` | `~` / `~*` | `REGEXP` user function (below) | MariaDB: PCRE `REGEXP` with `(?-i)` / `(?i)`; MySQL: `REGEXP_LIKE(.., 'c' / 'i')` |
+| is empty (string) | `LENGTH(col) = 0` | same | same (`col = ''` would match `' '`) |
+| nulls ordering | `CASE WHEN col IS NULL` key | same | none needed: NULL already sorts first ascending, last descending |
+| `binary_sort: true` | `COLLATE "C"` | default collation is binary | `(BINARY col)` |
 
 * **SQLite** has no `REGEXP`: register `Sidus\DoctrineFilterBundle\Platform\SqliteRegexp::register(\Pdo\Sqlite $pdo)`
   on the connection (a pattern starting with `(?i)` means case-insensitive). `LOWER()` and `LIKE` fold ASCII letters
-  only: `contains` of `école` does not find `ÉCOLE` (a known divergence of the contract suite).
-* **PostgreSQL** needs nothing; `~` is POSIX ERE, `LOWER()` follows the database locale.
+  only: `contains` of `école` does not find `ÉCOLE`.
+* **PostgreSQL**: `~` is POSIX ERE; `LOWER()` and `ORDER BY` follow the database locale (`binary_sort` for the
+  reference's byte-wise order).
+* **MariaDB / MySQL**: `ilike` is refused. Sorting by the default collation is usually what users want, `binary_sort`
+  gives the byte-wise order of the reference. Declare `serverVersion` in the DBAL connection (`mariadb-12.3.0`) to
+  avoid a connection at platform detection.
 
 The provider registers its DQL functions (`SIDUS_REGEXP`, `SIDUS_IREGEXP`, `SIDUS_ILIKE`, `SIDUS_BINARY`) on the
 entity manager configuration when a handler is created; there is nothing to declare.
+
+## Running the contract suite on a database
+
+```bash
+docker network create sidus-filter-net
+docker run -d --name pg --network sidus-filter-net -e POSTGRES_PASSWORD=sidus -e POSTGRES_DB=sidus postgres:16
+docker run -d --name maria --network sidus-filter-net -e MARIADB_ROOT_PASSWORD=sidus -e MARIADB_DATABASE=sidus mariadb:12.3
+export SIDUS_FILTER_PG_DSN='pdo-pgsql://postgres:sidus@pg:5432/sidus?serverVersion=16.0'
+export SIDUS_FILTER_MYSQL_DSN='pdo-mysql://root:sidus@maria:3306/sidus?charset=utf8mb4&serverVersion=mariadb-12.3.0'
+vendor/bin/phpunit tests/Contract
+```
+
+The tests drop and recreate the fixture tables of the database they are given. Without the variables, the PostgreSQL
+and MySQL suites are skipped.

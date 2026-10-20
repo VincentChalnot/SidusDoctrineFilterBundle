@@ -16,7 +16,8 @@ use Sidus\FilterBundle\Criterion\SortDirection;
 /**
  * One ORDER BY for the whole request, built from the sort columns then the identifier as final tie-breaker (always
  * ascending, pages are stable). Nulls first ascending, last descending, on every platform: a nullable column is
- * preceded by a `CASE WHEN column IS NULL` key (DQL has no NULLS FIRST). A to-many column is sorted through an
+ * preceded by a `CASE WHEN column IS NULL` key (DQL has no NULLS FIRST), except on MySQL and MariaDB where NULL
+ * already sorts that way. A to-many column is sorted through an
  * aggregate declared in the column's `provider_options.doctrine.aggregate` (hidden select), anything else is refused.
  * With the list option `binary_sort`, strings are compared byte-wise like the reference (PostgreSQL `COLLATE "C"`).
  */
@@ -54,7 +55,7 @@ final class SortCompiler implements DoctrineSortCompilerInterface
                 $nullable = $field->isNullable();
                 $text = \in_array($field->leafType, FieldCapabilities::TEXT_TYPES, true);
             }
-            if ($nullable) {
+            if ($nullable && !$context->dialect->nullsSortLikeReference()) {
                 Ordering::add($queryBuilder, 'CASE WHEN '.$expression.' IS NULL THEN '.($descending ? 1 : 0).' ELSE '.($descending ? 0 : 1).' END');
             }
             $binary = $text && $context->mapping->binarySort;

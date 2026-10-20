@@ -12,3 +12,5 @@
 * Lazy `COUNT` on a clone without `ORDER BY`; `withCustomizer()` per handler.
 * Cache warmer and `lint:sidus-filter` validating every attribute path, criterion and sort column of every
   doctrine list against the Doctrine metadata.
+* PostgreSQL, SQLite, MariaDB and MySQL dialects; the contract suite runs on SQLite, and on PostgreSQL and
+  MariaDB 12.3 when `SIDUS_FILTER_PG_DSN` / `SIDUS_FILTER_MYSQL_DSN` are set.

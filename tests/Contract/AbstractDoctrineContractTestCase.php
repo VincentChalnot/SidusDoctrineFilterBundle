@@ -23,14 +23,26 @@ abstract class AbstractDoctrineContractTestCase extends AbstractProviderContract
 {
     private static ?TestKernel $kernel = null;
 
-    abstract protected static function usePostgres(): bool;
+    /** @return 'sqlite'|'pgsql'|'mysql' */
+    abstract protected static function platform(): string;
+
+    /** The environment variable holding the DSN of the database, null for SQLite. */
+    protected static function dsnVariable(): ?string
+    {
+        return match (static::platform()) {
+            'pgsql' => 'SIDUS_FILTER_PG_DSN',
+            'mysql' => 'SIDUS_FILTER_MYSQL_DSN',
+            default => null,
+        };
+    }
 
     public static function setUpBeforeClass(): void
     {
-        if (static::usePostgres() && false === getenv('SIDUS_FILTER_PG_DSN')) {
+        $variable = static::dsnVariable();
+        if (null !== $variable && false === getenv($variable)) {
             return;
         }
-        self::$kernel = TestKernel::create([], null, ['postgres' => static::usePostgres()]);
+        self::$kernel = TestKernel::create([], null, ['platform' => static::platform()]);
         self::$kernel->boot();
         $em = self::$kernel->getContainer()->get('doctrine.orm.entity_manager');
         \assert($em instanceof EntityManagerInterface);
@@ -46,7 +58,7 @@ abstract class AbstractDoctrineContractTestCase extends AbstractProviderContract
     protected function setUp(): void
     {
         if (null === self::$kernel) {
-            self::markTestSkipped('SIDUS_FILTER_PG_DSN is not set.');
+            self::markTestSkipped(static::dsnVariable().' is not set.');
         }
     }
 
@@ -66,5 +78,45 @@ abstract class AbstractDoctrineContractTestCase extends AbstractProviderContract
         \assert($factory instanceof DoctrineQueryHandlerFactory);
 
         return $factory->createQueryHandler($definition, FilterTypeRegistry::builtIn(), $countStrategy);
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     *
+     * @return list<int>
+     */
+    private function ids(array $filters): array
+    {
+        $result = $this->createHandler($this->definition())->handle(\Sidus\FilterBundle\Input\ListInput::fromArray(['filters' => $filters]));
+
+        return array_map($this->itemId(...), $result->items());
+    }
+
+    /**
+     * MySQL and MariaDB compare strings with a case- and accent-insensitive collation that pads with spaces; the
+     * reference does none of it. These pass on every platform, so they stay honest on the others too.
+     */
+    public function testStringEqualityIsExact(): void
+    {
+        $equals = static fn (string $value): array => ['title' => ['operator' => 'equals', 'value' => $value]];
+
+        self::assertSame([2], $this->ids($equals('hello again')));
+        self::assertSame([], $this->ids($equals('HELLO AGAIN')), 'case');
+        self::assertSame([], $this->ids($equals('ecole')), 'accents');
+        self::assertSame([], $this->ids($equals('école')), 'accents and case');
+        self::assertSame([5], $this->ids($equals('ÉCOLE')));
+    }
+
+    public function testASpaceIsNotEmptyAndNotEqualToTheEmptyString(): void
+    {
+        $connection = self::$kernel->getContainer()->get('doctrine.orm.entity_manager')->getConnection();
+        $connection->executeStatement("UPDATE post SET summary = ' ' WHERE id = 2");
+
+        try {
+            self::assertSame([3], $this->ids(['summary' => ['operator' => 'is_empty']]), 'post 2 has a space now: not empty');
+            self::assertSame([1, 2, 4, 5, 6], $this->ids(['summary' => ['operator' => 'is_not_empty']]));
+        } finally {
+            $connection->executeStatement("UPDATE post SET summary = '' WHERE id = 2");
+        }
     }
 }

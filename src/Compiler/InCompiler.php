@@ -27,7 +27,7 @@ final class InCompiler extends AbstractDoctrineCompiler
         }
 
         return FieldAccess::matching($context, $field, static fn (string $column): DqlExpression => DqlExpression::nullable(
-            $column.' IN ('.ValueBinder::bindList($context, $field, $values).')',
+            $context->exact($field, $column).' IN ('.ValueBinder::bindList($context, $field, $values).')',
         ));
     }
 }

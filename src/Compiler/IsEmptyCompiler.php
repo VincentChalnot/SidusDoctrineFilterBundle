@@ -34,7 +34,7 @@ final class IsEmptyCompiler extends AbstractDoctrineCompiler
         return FieldAccess::matching(
             $context,
             $field,
-            static fn (string $column): DqlExpression => DqlExpression::safe($text ? '('.$column." IS NULL OR $column = '')" : $column.' IS NULL'),
+            static fn (string $column): DqlExpression => DqlExpression::safe($text ? '('.$column.' IS NULL OR LENGTH('.$column.') = 0)' : $column.' IS NULL'),
             true,
         );
     }

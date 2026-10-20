@@ -32,7 +32,7 @@ final class TestKernel extends Kernel
     public function __construct(
         private readonly ?\Closure $configure = null,
         private readonly string $id = 'default',
-        private readonly bool $usePostgres = false,
+        private readonly string $platform = 'sqlite',
         private readonly bool $recordQueries = false,
         private readonly bool $warmer = true,
     ) {
@@ -42,7 +42,7 @@ final class TestKernel extends Kernel
     /**
      * @param array<string, array<string, mixed>>        $lists
      * @param \Closure(ContainerConfigurator): void|null $services
-     * @param array{id?: string, postgres?: bool, record_queries?: bool, warmer?: bool} $options `record_queries` logs every
+     * @param array{id?: string, platform?: 'sqlite'|'pgsql'|'mysql', record_queries?: bool, warmer?: bool} $options `record_queries` logs every
      *                                                                                          SQL statement into {@see RecordingLogger}; `warmer`
      *                                                                                          false removes the list warmer (which runs on boot)
      */
@@ -58,7 +58,7 @@ final class TestKernel extends Kernel
             if (null !== $services) {
                 $services($container);
             }
-        }, $options['id'] ?? uniqid('k', true), $options['postgres'] ?? false, $record, $options['warmer'] ?? true);
+        }, $options['id'] ?? uniqid('k', true), $options['platform'] ?? 'sqlite', $record, $options['warmer'] ?? true);
     }
 
     public function registerBundles(): iterable
@@ -108,9 +108,11 @@ final class TestKernel extends Kernel
     protected function configureContainer(ContainerConfigurator $container): void
     {
         $container->extension('framework', ['test' => true, 'secret' => 'test', 'http_method_override' => false]);
-        $connection = $this->usePostgres
-            ? ['url' => (string) getenv('SIDUS_FILTER_PG_DSN')]
-            : ['driver' => 'pdo_sqlite', 'driver_class' => SqliteDriver::class, 'memory' => true];
+        $connection = match ($this->platform) {
+            'pgsql' => ['url' => (string) getenv('SIDUS_FILTER_PG_DSN')],
+            'mysql' => ['url' => (string) getenv('SIDUS_FILTER_MYSQL_DSN')],
+            default => ['driver' => 'pdo_sqlite', 'driver_class' => SqliteDriver::class, 'memory' => true],
+        };
         $container->extension('doctrine', [
             'dbal' => ['connections' => ['default' => $connection + ['logging' => $this->recordQueries, 'profiling' => false]]],
             'orm' => ['mappings' => ['Fixtures' => [

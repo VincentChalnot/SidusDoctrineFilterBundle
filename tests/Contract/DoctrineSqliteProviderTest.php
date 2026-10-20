@@ -9,9 +9,9 @@ namespace Sidus\DoctrineFilterBundle\Tests\Contract;
  */
 final class DoctrineSqliteProviderTest extends AbstractDoctrineContractTestCase
 {
-    protected static function usePostgres(): bool
+    protected static function platform(): string
     {
-        return false;
+        return 'sqlite';
     }
 
     protected function knownDivergences(): array

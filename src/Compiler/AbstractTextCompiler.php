@@ -17,7 +17,9 @@ use Sidus\FilterBundle\Criterion\StartsWith;
  *
  *  - case-sensitive: no LIKE (SQLite's LIKE ignores case): `LOCATE` / `SUBSTRING`, exact on every platform;
  *  - case-insensitive, `provider_options.doctrine.case_insensitive: lower` (default): `LOWER(column) LIKE` with the
- *    needle folded to lower case by PHP (Unicode), so the column side folds as the database does;
+ *    needle folded to lower case by PHP (Unicode), so the column side folds as the database does (on MySQL and
+ *    MariaDB the lowered column is compared as BINARY, otherwise their accent-insensitive collation would match
+ *    `ecole` with `ÉCOLE`);
  *  - `ilike` (PostgreSQL): `ILIKE`, which can use a trigram index.
  */
 abstract class AbstractTextCompiler extends AbstractDoctrineCompiler
@@ -33,9 +35,9 @@ abstract class AbstractTextCompiler extends AbstractDoctrineCompiler
         \assert($criterion instanceof Contains || $criterion instanceof StartsWith || $criterion instanceof EndsWith);
         $field = $this->resolve($criterion, $context);
 
-        return FieldAccess::matching($context, $field, function (string $column) use ($criterion, $context): DqlExpression {
+        return FieldAccess::matching($context, $field, function (string $column) use ($criterion, $context, $field): DqlExpression {
             if ($criterion->caseSensitive) {
-                return DqlExpression::nullable($this->exact($context, $column, $criterion->text));
+                return DqlExpression::nullable($this->exact($context, $context->exact($field, $column), $criterion->text));
             }
             if ('ilike' === $context->fieldOption($criterion->field, 'case_insensitive', 'lower')) {
                 $pattern = $context->parameter($this->pattern(self::escape($criterion->text)));
@@ -44,7 +46,8 @@ abstract class AbstractTextCompiler extends AbstractDoctrineCompiler
             }
             $pattern = $context->parameter($this->pattern(self::escape(mb_strtolower($criterion->text))));
 
-            return DqlExpression::nullable('LOWER('.$column.') LIKE '.$pattern." ESCAPE '!'");
+            // MySQL and MariaDB: LOWER() folds Unicode, BINARY then compares exactly (no accent folding, no padding).
+            return DqlExpression::nullable($context->exact($field, 'LOWER('.$column.')').' LIKE '.$pattern." ESCAPE '!'");
         });
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Sidus\DoctrineFilterBundle\Dql;
 
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\ORM\Query\AST\Functions\FunctionNode;
 use Doctrine\ORM\Query\AST\Node;
@@ -12,8 +13,10 @@ use Doctrine\ORM\Query\SqlWalker;
 use Doctrine\ORM\Query\TokenType;
 
 /**
- * `SIDUS_BINARY(subject)`: the subject compared byte-wise (`COLLATE "C"` on PostgreSQL; SQLite's default collation
- * is already binary). For `ORDER BY` only.
+ * `SIDUS_BINARY(subject)`: the subject compared and ordered byte-wise, ignoring the column collation. MySQL and
+ * MariaDB: `(BINARY subject)`, usable anywhere a string is (comparison, LIKE, LOCATE, ORDER BY). PostgreSQL:
+ * `COLLATE "C"`, valid in ORDER BY only (the compilers use it nowhere else there). SQLite: its default collation is
+ * already binary, nothing is emitted.
  */
 class BinaryFunction extends FunctionNode
 {
@@ -30,7 +33,12 @@ class BinaryFunction extends FunctionNode
     public function getSql(SqlWalker $sqlWalker): string
     {
         $sql = $this->subject->dispatch($sqlWalker);
+        $platform = $sqlWalker->getConnection()->getDatabasePlatform();
 
-        return $sqlWalker->getConnection()->getDatabasePlatform() instanceof PostgreSQLPlatform ? $sql.' COLLATE "C"' : $sql;
+        return match (true) {
+            $platform instanceof PostgreSQLPlatform => $sql.' COLLATE "C"',
+            $platform instanceof AbstractMySQLPlatform => '(BINARY '.$sql.')',
+            default => $sql,
+        };
     }
 }

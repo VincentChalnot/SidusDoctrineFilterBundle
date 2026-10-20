@@ -7,7 +7,10 @@ namespace Sidus\DoctrineFilterBundle\Query;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
+use Sidus\DoctrineFilterBundle\Dql\DqlFunctions;
+use Sidus\DoctrineFilterBundle\Metadata\FieldCapabilities;
 use Sidus\DoctrineFilterBundle\Metadata\ListMapping;
+use Sidus\DoctrineFilterBundle\Metadata\ResolvedField;
 use Sidus\DoctrineFilterBundle\Platform\Dialect;
 use Sidus\FilterBundle\Definition\Field;
 use Sidus\FilterBundle\Provider\QueryContextInterface;
@@ -83,6 +86,18 @@ final class DoctrineQueryContext implements QueryContextInterface
     public function isDistinct(): bool
     {
         return $this->distinct;
+    }
+
+    /**
+     * The column as it must be compared for exactness: on MySQL and MariaDB a string column goes through
+     * `SIDUS_BINARY()` (the column collation is case- and accent-insensitive and pads with spaces), anywhere else
+     * it is returned as is.
+     */
+    public function exact(ResolvedField $field, string $column): string
+    {
+        return $this->dialect->isMySqlFamily() && \in_array($field->valueType(), FieldCapabilities::TEXT_TYPES, true)
+            ? DqlFunctions::BINARY.'('.$column.')'
+            : $column;
     }
 
     /**

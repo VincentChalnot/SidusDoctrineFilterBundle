@@ -57,6 +57,12 @@ final readonly class ResolvedField
         return [] !== $this->steps && $this->steps[\array_key_last($this->steps)]->toMany && $this->endsOnAssociation();
     }
 
+    /** The DBAL type of the values compared: the mapped type of the terminal field. */
+    public function valueType(): ?string
+    {
+        return $this->leafType;
+    }
+
     public function isJson(): bool
     {
         return [] !== $this->field->json;

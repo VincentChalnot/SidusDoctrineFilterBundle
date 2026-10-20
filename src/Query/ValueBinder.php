@@ -20,7 +20,7 @@ final class ValueBinder
     /** Binds one value, returns its placeholder. */
     public static function bind(DoctrineQueryContext $context, ResolvedField $field, mixed $value): string
     {
-        [$value, $type] = self::prepare($field->leafType, $value);
+        [$value, $type] = self::prepare($field->valueType(), $value);
 
         return $context->parameter($value, $type);
     }
@@ -36,7 +36,7 @@ final class ValueBinder
         $converted = [];
         $binding = ParameterType::STRING;
         foreach ($values as $value) {
-            [$prepared, $type] = self::prepare($field->leafType, $value);
+            [$prepared, $type] = self::prepare($field->valueType(), $value);
             if (\is_string($type) && Type::hasType($type)) {
                 $dbalType = Type::getType($type);
                 $prepared = $dbalType->convertToDatabaseValue($prepared, $platform);

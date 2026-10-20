@@ -26,7 +26,7 @@ final class EqualsCompiler extends AbstractDoctrineCompiler
         }
 
         return FieldAccess::matching($context, $field, static fn (string $column): DqlExpression => DqlExpression::nullable(
-            $column.' = '.ValueBinder::bind($context, $field, $criterion->value),
+            $context->exact($field, $column).' = '.ValueBinder::bind($context, $field, $criterion->value),
         ));
     }
 }
