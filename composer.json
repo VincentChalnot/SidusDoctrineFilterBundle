@@ -1,0 +1,78 @@
+{
+    "name": "sidus/doctrine-filter-bundle",
+    "description": "Doctrine ORM provider for sidus/filter-bundle: criteria compiled to deterministic DQL",
+    "keywords": [
+        "filter",
+        "sort",
+        "pagination",
+        "doctrine",
+        "orm",
+        "dql"
+    ],
+    "homepage": "https://github.com/VincentChalnot/SidusDoctrineFilterBundle",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Vincent Chalnot",
+            "email": "vincent@sidus.fr",
+            "homepage": "https://sidus.fr",
+            "role": "Developer"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../SidusFilterBundle",
+            "options": {
+                "symlink": true,
+                "versions": {
+                    "sidus/filter-bundle": "7.0.0"
+                }
+            }
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Sidus\\DoctrineFilterBundle\\": "src/"
+        },
+        "exclude-from-classmap": [
+            "/tests/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Sidus\\DoctrineFilterBundle\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": ">=8.4",
+        "doctrine/dbal": "^4.0",
+        "doctrine/doctrine-bundle": "^3.0",
+        "doctrine/orm": "^3.3",
+        "doctrine/persistence": "^3.3 || ^4.0",
+        "sidus/filter-bundle": "^7.0",
+        "symfony/config": "^8.1",
+        "symfony/dependency-injection": "^8.1",
+        "symfony/http-kernel": "^8.1",
+        "symfony/options-resolver": "^8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.0",
+        "symfony/console": "^8.1",
+        "symfony/filesystem": "^8.1",
+        "symfony/framework-bundle": "^8.1",
+        "symfony/yaml": "^8.1"
+    },
+    "suggest": {
+        "martin-georgiev/postgresql-for-doctrine": "JSON path filtering and sorting on PostgreSQL (json/jsonb columns)",
+        "symfony/console": "Enables the lint:sidus-filter command",
+        "symfony/form": "Form adapter of sidus/filter-bundle (relation filter mapper)"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}
