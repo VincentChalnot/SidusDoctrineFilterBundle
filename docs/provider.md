@@ -172,7 +172,7 @@ running the same cases on the database and on the in-memory provider over the sa
 | `Contains`, `StartsWith`, `EndsWith` | case-insensitive: `LOWER(col) LIKE :p ESCAPE '!'` with `%`, `_` and `!` escaped (or `ILIKE`); case-sensitive: `LOCATE` / `SUBSTRING`, exact on every platform (SQLite's `LIKE` ignores case). String fields only. |
 | `Range` | `col >= :p1 AND col <= :p2` (bounds inclusive or not). Numbers and dates only. |
 | `IsNull` | `col IS NULL`; to-one association: its foreign key (no join), or the target identifier for an inverse side. A collection is never null (refused). |
-| `IsEmpty` | string: `col IS NULL OR col = ''`; other scalars: `IS NULL`; collection: `NOT EXISTS (...)`. |
+| `IsEmpty` | string: `col IS NULL OR LENGTH(col) = 0`; other scalars: `IS NULL`; collection: `NOT EXISTS (...)`. |
 | `Matches` | `SIDUS_REGEXP(col, :p) = 1` / `SIDUS_IREGEXP(...)`: PostgreSQL `~` / `~*`, SQLite `REGEXP` (see platforms). |
 | `Not`, `AnyOf`, `AllOf` | `NOT`, `OR`, `AND`. `Not` of a condition that SQL can make NULL is `CASE WHEN (...) THEN 0 ELSE 1 END = 1`, so that "null never matches, hence `Not(...)` matches null" holds as in the reference. |
 | `Native('doctrine', closure)` | `closure(DoctrineQueryContext): string` returns a DQL condition; bind values with `$context->parameter()`. |
