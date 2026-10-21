@@ -12,7 +12,7 @@ Everything also runs in Docker (the local PHP may lack `pdo_sqlite`): see the co
 | `tests/Contract` | `Sidus\FilterBundle\Test\Contract\AbstractProviderContractTestCase`: ~90 cases defined once in the core (fixture, filters, expected ids, totals, violations) on SQLite, PostgreSQL and MariaDB. `knownDivergences()` lists SQLite's ASCII-only `LOWER()` only; PostgreSQL and MariaDB have none. Plus string-exactness cases (case, accents, trailing spaces). |
 | `tests/Query` | DQL shape (one shared `LEFT JOIN` per to-one prefix, one `EXISTS` per to-many criterion, one `ORDER BY`), deterministic names and query-cache hits, count query shape, aggregates, customizers, native criterion, refusals. |
 | `tests/Joins`, `tests/Json` | Named joins and shared collections, JSON paths: on every platform, JSON cases are also run on the in-memory reference and must give the same ids. |
-| `tests/Functional` | Worker mode (one booted kernel, several requests through `QueryHandlerRegistry` with the services reset in between: isolated results, a single `ORDER BY`, identical DQL for identical input), cache warmer and `lint:sidus-filter`. |
+| `tests/Functional` | Worker mode (one booted kernel, several requests through `QueryHandlerRegistry` with the services reset in between: isolated results, a single `ORDER BY`, identical DQL for identical input), cache warmer, `cache:clear` in a non-debug kernel (next to DoctrineBundle's metadata warmer) and `lint:sidus-filter`. |
 | `tests/Metadata`, `tests/Platform` | Field resolution and capability refusals; the SQLite `REGEXP` function. |
 
 ## Databases

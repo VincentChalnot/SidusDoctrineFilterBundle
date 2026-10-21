@@ -67,6 +67,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ListWarmer::class)->public()->args([
         service(ListDefinitionRegistry::class),
         service(ListValidator::class),
+        service('doctrine'),
     ])->tag('kernel.cache_warmer');
 
     if (class_exists(Command::class)) {

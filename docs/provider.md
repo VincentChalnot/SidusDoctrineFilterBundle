@@ -255,6 +255,10 @@ each naming the list, the filter and the attribute:
 Platform checks are skipped when the database cannot be reached, so that `cache:warmup` works in a build without
 a database.
 
+The validation loads the Doctrine metadata. The warmer resets the entity managers it validated against once it is
+done, so that DoctrineBundle's optional metadata warmer (non-debug kernels; `cache:clear` runs it after the
+non-optional warmers, on the same container) still finds an entity manager whose metadata is not loaded yet.
+
 ## Platforms
 
 PostgreSQL, SQLite and MariaDB are tested by the shared contract suite (`knownDivergences` only for SQLite's

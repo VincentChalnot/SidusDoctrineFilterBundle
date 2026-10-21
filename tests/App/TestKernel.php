@@ -26,6 +26,8 @@ final class TestKernel extends Kernel
 {
     use MicroKernelTrait;
 
+    private bool $cacheWiped = false;
+
     /**
      * @param \Closure(ContainerConfigurator): void|null $configure
      */
@@ -35,16 +37,18 @@ final class TestKernel extends Kernel
         private readonly string $platform = 'sqlite',
         private readonly bool $recordQueries = false,
         private readonly bool $warmer = true,
+        bool $debug = true,
     ) {
-        parent::__construct('test', true);
+        parent::__construct('test', $debug);
     }
 
     /**
      * @param array<string, array<string, mixed>>        $lists
      * @param \Closure(ContainerConfigurator): void|null $services
-     * @param array{id?: string, platform?: 'sqlite'|'pgsql'|'mysql', record_queries?: bool, warmer?: bool} $options `record_queries` logs every
+     * @param array{id?: string, platform?: 'sqlite'|'pgsql'|'mysql', record_queries?: bool, warmer?: bool, debug?: bool} $options `record_queries` logs every
      *                                                                                          SQL statement into {@see RecordingLogger}; `warmer`
-     *                                                                                          false removes the list warmer (which runs on boot)
+     *                                                                                          false removes the list warmer (which runs on boot);
+     *                                                                                          `debug` false is the prod behaviour (DoctrineBundle registers its metadata warmer)
      */
     public static function create(array $lists, ?\Closure $services = null, array $options = []): self
     {
@@ -58,7 +62,7 @@ final class TestKernel extends Kernel
             if (null !== $services) {
                 $services($container);
             }
-        }, $options['id'] ?? uniqid('k', true), $options['platform'] ?? 'sqlite', $record, $options['warmer'] ?? true);
+        }, $options['id'] ?? uniqid('k', true), $options['platform'] ?? 'sqlite', $record, $options['warmer'] ?? true, $options['debug'] ?? true);
     }
 
     public function registerBundles(): iterable
@@ -71,8 +75,9 @@ final class TestKernel extends Kernel
 
     public function boot(): void
     {
-        if (!$this->booted) {
+        if (!$this->booted && !$this->cacheWiped) {
             new Filesystem()->remove($this->getCacheDir());
+            $this->cacheWiped = true;
         }
         parent::boot();
     }
