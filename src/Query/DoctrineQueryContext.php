@@ -126,12 +126,16 @@ final class DoctrineQueryContext implements QueryContextInterface
     /**
      * The column as it must be compared for exactness: on MySQL and MariaDB a string column goes through
      * `SIDUS_BINARY()` (the column collation is case- and accent-insensitive and pads with spaces), anywhere else
-     * it is returned as is.
+     * it is returned as is. A foreign key read through its association (`root.forum`) is not a state field path: DQL
+     * only accepts it inside `IDENTITY()`, which the function needs.
      */
     public function exact(ResolvedField $field, string $column): string
     {
-        return $this->dialect->isMySqlFamily() && \in_array($field->valueType(), FieldCapabilities::TEXT_TYPES, true)
-            ? DqlFunctions::BINARY.'('.$column.')'
-            : $column;
+        $field = $field->collapseIdentifier(); // as {@see FieldAccess::matching()} does before building the column
+        if (!$this->dialect->isMySqlFamily() || !\in_array($field->valueType(), FieldCapabilities::TEXT_TYPES, true)) {
+            return $column;
+        }
+
+        return DqlFunctions::BINARY.'('.($field->leafIsForeignKey ? 'IDENTITY('.$column.')' : $column).')';
     }
 }

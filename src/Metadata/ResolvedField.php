@@ -18,6 +18,7 @@ final readonly class ResolvedField
      * @param string|null       $leaf         mapped field name on the last entity (`address.city` for embeddables)
      * @param string|null       $leafType     DBAL type name of the terminal field
      * @param class-string|null $leafEntity   entity owning the terminal field
+     * @param bool              $leafIsForeignKey the leaf is a to-one association standing for its foreign key (`root.forum`), not a state field: DQL only lets `IDENTITY()` read it inside a function
      */
     public function __construct(
         public Field $field,
@@ -27,6 +28,7 @@ final readonly class ResolvedField
         public ?string $leafType,
         public bool $leafNullable = true,
         public ?string $leafEntity = null,
+        public bool $leafIsForeignKey = false,
     ) {
     }
 
@@ -90,7 +92,7 @@ final readonly class ResolvedField
             return $this;
         }
 
-        return new self($this->field, $this->rootEntity, \array_slice($this->steps, 0, -1), $last->name, $last->targetIdentifierType, true, $last->source);
+        return new self($this->field, $this->rootEntity, \array_slice($this->steps, 0, -1), $last->name, $last->targetIdentifierType, true, $last->source, true);
     }
 
     /**
@@ -104,7 +106,7 @@ final readonly class ResolvedField
         }
         $last = $this->steps[\array_key_last($this->steps)];
         if ($last->joinColumnOnRow) {
-            return new self($this->field, $this->rootEntity, \array_slice($this->steps, 0, -1), $last->name, null, true);
+            return new self($this->field, $this->rootEntity, \array_slice($this->steps, 0, -1), $last->name, null, true, null, true);
         }
 
         return new self($this->field, $this->rootEntity, $this->steps, $last->targetIdentifier, null, true);

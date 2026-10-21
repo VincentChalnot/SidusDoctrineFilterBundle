@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased (1.0.0)
+## 1.0.1
+
+* Fix: `Equals` and `In` on a to-one association whose target has a string identifier (`relation`, or `choice` on
+  `forum.id`) failed on MySQL and MariaDB with "Invalid PathExpression. Must be a StateFieldPathExpression": the
+  foreign key `root.forum` was wrapped in `SIDUS_BINARY()` as is. It is now `SIDUS_BINARY(IDENTITY(root.forum))`,
+  still exact (case, accents, trailing spaces). Other platforms and integer keys are unchanged.
+
+## 1.0.0
 
 * Doctrine ORM provider `doctrine` for `sidus/filter-bundle` 7.0.
 * Field paths resolved from the Doctrine metadata once per list (immutable `ResolvedField`, embeddables included).

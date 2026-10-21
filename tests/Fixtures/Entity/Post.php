@@ -39,6 +39,10 @@ class Post
     #[ORM\JoinColumn(nullable: true)]
     private ?Author $author = null;
 
+    #[ORM\ManyToOne(targetEntity: Category::class)]
+    #[ORM\JoinColumn(name: 'category_slug', referencedColumnName: 'slug', nullable: true)]
+    private ?Category $category = null;
+
     /** @var Collection<int, Tag> */
     #[ORM\OneToMany(targetEntity: Tag::class, mappedBy: 'post')]
     private Collection $tags;
@@ -120,6 +124,16 @@ class Post
     public function setAuthor(?Author $author): void
     {
         $this->author = $author;
+    }
+
+    public function getCategory(): ?Category
+    {
+        return $this->category;
+    }
+
+    public function setCategory(?Category $category): void
+    {
+        $this->category = $category;
     }
 
     /**

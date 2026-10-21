@@ -7,6 +7,7 @@ namespace Sidus\DoctrineFilterBundle\Tests\Support;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Author;
+use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Category;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Company;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Post;
 use Sidus\DoctrineFilterBundle\Tests\Fixtures\Entity\Profile;
@@ -36,6 +37,12 @@ final class FixtureLoader
             $authors[$data['id']] = new Author($data['id'], $data['name'], $companies[$data['id']] ?? null);
             $em->persist($authors[$data['id']]);
         }
+        // Posts 1 and 2 are in "music", post 3 in "cinema", the others in none (string identifier target).
+        $categories = ['music' => new Category('music', 'Music'), 'cinema' => new Category('cinema', 'Cinema')];
+        foreach ($categories as $category) {
+            $em->persist($category);
+        }
+        $postCategories = [1 => 'music', 2 => 'music', 3 => 'cinema'];
         foreach (FixtureDataset::posts() as $data) {
             $post = new Post($data['id'], $data['title'], $data['status']);
             $post->setViews($data['views']);
@@ -43,6 +50,7 @@ final class FixtureLoader
             $post->setPublishedAt($data['publishedAt']?->setTimezone(new \DateTimeZone(date_default_timezone_get())));
             $post->setSummary($data['summary']);
             $post->setAuthor(null === $data['author'] ? null : $authors[$data['author']['id']]);
+            $post->setCategory(isset($postCategories[$data['id']]) ? $categories[$postCategories[$data['id']]] : null);
             $em->persist($post);
             foreach ($data['tags'] as $tag) {
                 $em->persist(new Tag($tag['id'], $tag['label'], $post));
